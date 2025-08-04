@@ -31,7 +31,7 @@ var db *sql.DB
 func main() {
 	// Initialize database connection
 	var err error
-	dbConnStr := os.Getenv("DATABASE_URL")
+	dbConnStr := os.Getenv("GOSERVE_DATABASE_URL")
 	if dbConnStr == "" {
 		log.Fatal("DATABASE_URL environment variable not set.")
 	}
