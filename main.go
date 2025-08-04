@@ -55,11 +55,11 @@ func main() {
  router := mux.NewRouter()
 
  // Define API routes
- router.HandleFunc("/students", createStudent).Methods("POST")
- router.HandleFunc("/students/{id}", getStudent).Methods("GET")
- router.HandleFunc("/students", getAllStudents).Methods("GET")
- router.HandleFunc("/students/{id}", updateStudent).Methods("PUT")
- router.HandleFunc("/students/{id}", deleteStudent).Methods("DELETE")
+ router.HandleFunc("/godbstudents", createStudent).Methods("POST")
+ router.HandleFunc("/godbstudents/{id}", getStudent).Methods("GET")
+ router.HandleFunc("/godbstudents", getAllgodbstudents).Methods("GET")
+ router.HandleFunc("/godbstudents/{id}", updateStudent).Methods("PUT")
+ router.HandleFunc("/godbstudents/{id}", deleteStudent).Methods("DELETE")
 
  // Start the HTTP server
  port := os.Getenv("PORT")
@@ -81,7 +81,7 @@ func createStudent(w http.ResponseWriter, r *http.Request) {
  }
 
  // Insert the new student into the database
- query := `INSERT INTO students (first_name, last_name, email, major) VALUES ($1, $2, $3, $4) RETURNING id`
+ query := `INSERT INTO godbstudents (first_name, last_name, email, major) VALUES ($1, $2, $3, $4) RETURNING id`
  err = db.QueryRow(query, student.FirstName, student.LastName, student.Email, student.Major).Scan(&student.ID)
  if err != nil {
   http.Error(w, fmt.Sprintf("Error creating student: %v", err), http.StatusInternalServerError)
@@ -103,7 +103,7 @@ func getStudent(w http.ResponseWriter, r *http.Request) {
  }
 
  var student Student
- query := `SELECT id, first_name, last_name, email, major FROM students WHERE id = $1`
+ query := `SELECT id, first_name, last_name, email, major FROM godbstudents WHERE id = $1`
  row := db.QueryRow(query, id)
 
  err = row.Scan(&student.ID, &student.FirstName, &student.LastName, &student.Email, &student.Major)
@@ -119,13 +119,13 @@ func getStudent(w http.ResponseWriter, r *http.Request) {
  json.NewEncoder(w).Encode(student)
 }
 
-// getAllStudents handles GET requests to retrieve all student records.
-func getAllStudents(w http.ResponseWriter, r *http.Request) {
- var students []Student
- query := `SELECT id, first_name, last_name, email, major FROM students ORDER BY id`
+// getAllgodbstudents handles GET requests to retrieve all student records.
+func getAllgodbstudents(w http.ResponseWriter, r *http.Request) {
+ var godbstudents []Student
+ query := `SELECT id, first_name, last_name, email, major FROM godbstudents ORDER BY id`
  rows, err := db.Query(query)
  if err != nil {
-  http.Error(w, fmt.Sprintf("Error retrieving students: %v", err), http.StatusInternalServerError)
+  http.Error(w, fmt.Sprintf("Error retrieving godbstudents: %v", err), http.StatusInternalServerError)
   return
  }
  defer rows.Close()
@@ -137,7 +137,7 @@ func getAllStudents(w http.ResponseWriter, r *http.Request) {
    log.Printf("Error scanning student row: %v", err)
    continue
   }
-  students = append(students, student)
+  godbstudents = append(godbstudents, student)
  }
 
  if err = rows.Err(); err != nil {
@@ -146,7 +146,7 @@ func getAllStudents(w http.ResponseWriter, r *http.Request) {
  }
 
  w.Header().Set("Content-Type", "application/json")
- json.NewEncoder(w).Encode(students)
+ json.NewEncoder(w).Encode(godbstudents)
 }
 
 // updateStudent handles PUT requests to update an existing student record.
@@ -172,7 +172,7 @@ func updateStudent(w http.ResponseWriter, r *http.Request) {
  }
  student.ID = id // Use the ID from the URL path
 
- query := `UPDATE students SET first_name = $1, last_name = $2, email = $3, major = $4 WHERE id = $5`
+ query := `UPDATE godbstudents SET first_name = $1, last_name = $2, email = $3, major = $4 WHERE id = $5`
  result, err := db.Exec(query, student.FirstName, student.LastName, student.Email, student.Major, student.ID)
  if err != nil {
   http.Error(w, fmt.Sprintf("Error updating student: %v", err), http.StatusInternalServerError)
@@ -202,7 +202,7 @@ func deleteStudent(w http.ResponseWriter, r *http.Request) {
   return
  }
 
- query := `DELETE FROM students WHERE id = $1`
+ query := `DELETE FROM godbstudents WHERE id = $1`
  result, err := db.Exec(query, id)
  if err != nil {
   http.Error(w, fmt.Sprintf("Error deleting student: %v", err), http.StatusInternalServerError)
