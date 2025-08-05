@@ -28,10 +28,12 @@ type Student struct {
 
 var db *sql.DB
 
+var listOfDBConnections = []string{"GOSERVE_DATABASE_URL", "PROJ2_DATABASE_URL", "GOOGLE_CLOUD_SQL"}
+
 func main() {
 	// Initialize database connection
 	var err error
-	dbConnStr := os.Getenv("GOSERVE_DATABASE_URL")
+	dbConnStr := os.Getenv(listOfDBConnections[2])
 	if dbConnStr == "" {
 		log.Fatal("DATABASE_URL environment variable not set.")
 	}
