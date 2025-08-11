@@ -28,7 +28,7 @@ type Student struct {
 
 var db *sql.DB
 
-var listOfDBConnections = []string{"GOSERVE_DATABASE_URL", "PROJ2_DATABASE_URL", "GOOGLE_CLOUD_SQL"}
+var listOfDBConnections = []string{"GOSERVE_DATABASE_URL", "PROJ2_DATABASE_URL", "GOOGLE_CLOUD_SQL", "GOOGLE_VM_HOSTED_SQL"}
 
 func main() {
 	// Initialize database connection
