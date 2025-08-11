@@ -33,7 +33,7 @@ var listOfDBConnections = []string{"GOSERVE_DATABASE_URL", "PROJ2_DATABASE_URL",
 func main() {
 	// Initialize database connection
 	var err error
-	dbConnStr := os.Getenv(listOfDBConnections[2])
+	dbConnStr := os.Getenv(listOfDBConnections[3])
 	if dbConnStr == "" {
 		log.Fatal("DATABASE_URL environment variable not set.")
 	}
