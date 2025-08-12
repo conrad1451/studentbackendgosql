@@ -1,3 +1,6 @@
+// Sources:
+// [1]: https://www.google.com/search?q=golang+could+use+tagged+switch&client=firefox-b-1-d&sca_esv=3af941f69087be74&ei=65mbaNfuH5_i5NoPyPD14QI&ved=0ahUKEwiXkIjLhIaPAxUfMVkFHUh4PSwQ4dUDCBA&oq=golang+could+use+tagged+switch&gs_lp=Egxnd3Mtd2l6LXNlcnAiHmdvbGFuZyBjb3VsZCB1c2UgdGFnZ2VkIHN3aXRjaEgAUABYAHAAeAGQAQCYAQCgAQCqAQC4AQzIAQCYAgCgAgCYAwCSBwCgBwCyBwC4BwDCBwDIBwA&sclient=gws-wiz-serp
+
 package main
 
 import (
@@ -28,6 +31,7 @@ type Student struct {
 
 var db *sql.DB
 
+// [1]
 func databaseChosen(chosenDB string) string{
 	var theVal string = ""
 
