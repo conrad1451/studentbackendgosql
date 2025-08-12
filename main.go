@@ -28,12 +28,30 @@ type Student struct {
 
 var db *sql.DB
 
-var listOfDBConnections = []string{"GOSERVE_DATABASE_URL", "PROJ2_DATABASE_URL", "GOOGLE_CLOUD_SQL", "GOOGLE_VM_HOSTED_SQL"}
+func databaseChosen(chosenDB string) string{
+	var theVal string = ""
+
+	switch chosenDB {
+	case "NEON_STUDENT_RECORDS_DB":
+		return "Neon DB student records DB chosen"
+	case "PROJECT2_DB":
+		return "Neon DB project2 DB chosen"
+	case "GOOGLE_CLOUD_SQL":
+		return "Google Cloud SQL DB chosen"
+	case "GOOGLE_VM_HOSTED_SQL":
+		return "Google VM hosted DB chosen"		
+	default:
+		return "some DB chosen" 
+	}
+}
+
+var listOfDBConnections = []string{"NEON_STUDENT_RECORDS_DB", "PROJECT2_DB", "GOOGLE_CLOUD_SQL", "GOOGLE_VM_HOSTED_SQL"}
 
 func main() {
 	// Initialize database connection
 	var err error
-	dbConnStr := os.Getenv(listOfDBConnections[3])
+	theChosenDB := listOfDBConnections[3]
+	dbConnStr := os.Getenv(theChosenDB)
 	if dbConnStr == "" {
 		log.Fatal("DATABASE_URL environment variable not set.")
 	}
@@ -49,6 +67,7 @@ func main() {
 		log.Fatalf("Error connecting to the database: %v", err)
 	}
 	fmt.Println("Successfully connected to the database!")
+	fmt.Println( databaseChosen(theChosenDB) )
 
 	// Initialize the router
 	router := mux.NewRouter()
