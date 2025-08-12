@@ -33,8 +33,6 @@ var db *sql.DB
 
 // [1]
 func databaseChosen(chosenDB string) string{
-	var theVal string = ""
-
 	switch chosenDB {
 	case "NEON_STUDENT_RECORDS_DB":
 		return "Neon DB student records DB chosen"
