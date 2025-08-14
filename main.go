@@ -148,15 +148,11 @@ func main() {
 	// router.HandleFunc("/godbstudents/{id}", deleteStudent).Methods("DELETE")
 
 	// --- CORS Setup ---
-	// allowedOrigins := handlers.AllowedOrigins([]string{"*"})
-	// allowedMethods := handlers.AllowedMethods([]string{"GET", "POST", "PUT", "DELETE", "OPTIONS"})
-	// allowedHeaders := handlers.AllowedHeaders([]string{"Content-Type", "Authorization"})
-	// corsRouter := handlers.CORS(allowedOrigins, allowedMethods, allowedHeaders)(router)
-	// --- End of CORS Setup ---
 
 	// CHQ: Gemini AI replaced corsRouter with this
 	router.Use(corsMiddleware)
-	
+		// --- End of CORS Setup ---
+
 	// Start the HTTP server
 	port := os.Getenv("PORT")
 	if port == "" {
