@@ -14,6 +14,8 @@ import (
 	"strings"
 
 	// PostgreSQL driver
+
+	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 
 	"github.com/descope/go-sdk/descope/client"
@@ -21,9 +23,9 @@ import (
 )
 
 // Utilizing the context package allows for the transmission of context capabilities like cancellation
-//      signals during the function call. In cases where context is absent, the context.Background()
-//      function serves as a viable alternative.
-//      Utilizing context within the Descope GO SDK is supported within versions 1.6.0 and higher.
+// signals during the function call. In cases where context is absent, the context.Background()
+// function serves as a viable alternative.
+// Utilizing context within the Descope GO SDK is supported within versions 1.6.0 and higher.
 
 // Student represents a student record in the database.
 type Student struct {
@@ -37,7 +39,6 @@ type Student struct {
 
 var db *sql.DB
 var descopeClient *client.DescopeClient
- 
 
 // Define a custom key type to avoid collisions
 type contextKey string
@@ -45,15 +46,12 @@ type contextKey string
 const contextKeyUserID contextKey = "userID"
 const contextKeyTeacherID contextKey = "teacherID" // A key for the teacher ID
 
-
-
-// [1]
 func databaseChosen(chosenDB string) string {
 	switch chosenDB {
 	case "NEON_STUDENT_RECORDS_DB":
 		return "Neon DB student records DB chosen"
 	case "PROJECT2_DB":
-		return "Neon DB project2 DB chosen"
+	return "Neon DB project2 DB chosen"
 	case "GOOGLE_CLOUD_SQL":
 		return "Google Cloud SQL DB chosen"
 	case "GOOGLE_VM_HOSTED_SQL":
@@ -63,50 +61,10 @@ func databaseChosen(chosenDB string) string {
 	}
 }
 
-func isPrefixAllowed(anOrigin string, anAllowedPrefix string) bool {
-	return strings.HasPrefix(anOrigin, "https://"+anAllowedPrefix) || strings.HasPrefix(anOrigin, "http://"+anAllowedPrefix);
-}
-
-
-func isAnyPrefixAllowed(origin string, prefix1 string, prefix2 string, prefix3 string) bool {
-	return isPrefixAllowed(origin, prefix1) || isPrefixAllowed(origin, prefix2)|| isPrefixAllowed(origin, prefix3)
-}
-
-// // CHQ: Gemini AI debugged function
-// // corsMiddleware dynamically sets the Access-Control-Allow-Origin header
-// // for any origin that starts with a specific pattern.
-// func corsMiddleware(next http.Handler) http.Handler {
-//     return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-//         origin := r.Header.Get("Origin")
-//         sitePrefix1 := os.Getenv("FRONT_END_SITE_PREFIX_1")
-//         sitePrefix2 := os.Getenv("FRONT_END_SITE_PREFIX_2")
-//         sitePrefix3 := os.Getenv("TESTER_1")
-
-//         if isAnyPrefixAllowed(origin, sitePrefix1, sitePrefix2, sitePrefix3) {
-//             w.Header().Set("Access-Control-Allow-Origin", origin)
-//             w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-//             w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-//             w.Header().Set("Access-Control-Allow-Credentials", "true") // This is important for session tokens
-//         }
-
-//         // Handle preflight requests
-//         if r.Method == http.MethodOptions {
-//             if isAnyPrefixAllowed(origin, sitePrefix1, sitePrefix2, sitePrefix3) {
-//                 w.WriteHeader(http.StatusOK)
-//                 return
-//             } else {
-//                 http.Error(w, "CORS: Not Allowed", http.StatusForbidden)
-//                 return
-//             }
-//         }
-
-//         // Pass the request to the next handler.
-//         next.ServeHTTP(w, r)
-//     })
-// }
 var listOfDBConnections = []string{"NEON_STUDENT_RECORDS_DB", "PROJECT2_DB", "GOOGLE_CLOUD_SQL", "GOOGLE_VM_HOSTED_SQL"}
 
 // CHQ: Gemini AI generated this function
+// faviconHandler serves the favicon.ico file.
 func faviconHandler(w http.ResponseWriter, r *http.Request) {
     // Open the favicon file
     favicon, err := os.ReadFile("./static/calculator.ico")
@@ -126,6 +84,10 @@ func main() {
 	// Initialize database connection
 	var err error
 	theChosenDB := listOfDBConnections[3]
+
+
+
+
 	dbConnStr := os.Getenv(theChosenDB)
 	if dbConnStr == "" {
 		log.Fatal("DATABASE_URL environment variable not set.")
@@ -144,26 +106,24 @@ func main() {
 	fmt.Println("Successfully connected to the database!")
 	fmt.Println(databaseChosen(theChosenDB))
 
-	// CHQ: Gemini AI added descope verification
-    // Initialize Descope client once at the start
-    // var err error
-    projectID := os.Getenv("DESCOPE_PROJECT_ID")
-    if projectID == "" {
-        log.Fatal("DESCOPE_PROJECT_ID environment variable not set.")
-    }
-    descopeClient, err = client.NewWithConfig(&client.Config{ProjectID: projectID})
-    if err != nil {
-        log.Fatalf("failed to initialize Descope client: %v", err)
-    }
+	projectID := os.Getenv("DESCOPE_PROJECT_ID")
+	if projectID == "" {
+		log.Fatal("DESCOPE_PROJECT_ID environment variable not set.")
+	}
+	descopeClient, err = client.NewWithConfig(&client.Config{ProjectID: projectID})
+	if err != nil {
+		log.Fatalf("failed to initialize Descope client: %v", err)
+	}
 
 	// Initialize the router
 	router := mux.NewRouter()
 
-	// All routes now go through the mux router
+	// All routes now go through the mux router, including static files
 	router.HandleFunc("/", helloHandler)
 	router.HandleFunc("/favicon.ico", faviconHandler)
 
-   // Protected routes (require session validation)
+	// Protected routes (require session validation)
+
     protectedRoutes := router.PathPrefix("/api").Subrouter()
     protectedRoutes.Use(sessionValidationMiddleware) // Apply middleware to all routes in this subrouter
     protectedRoutes.HandleFunc("/godbstudents", createStudent).Methods("POST")
@@ -186,35 +146,25 @@ func main() {
 	// router.HandleFunc("/godbstudents/{id}", deleteStudent).Methods("DELETE")
 
 	// --- CORS Setup ---
-	// allowedOrigins := handlers.AllowedOrigins([]string{"*"})
-	// allowedMethods := handlers.AllowedMethods([]string{"GET", "POST", "PUT", "DELETE", "OPTIONS"})
-	// allowedHeaders := handlers.AllowedHeaders([]string{"Content-Type", "Authorization"})
-	// corsRouter := handlers.CORS(allowedOrigins, allowedMethods, allowedHeaders)(router)
+	allowedOrigins := handlers.AllowedOrigins([]string{"*"})
+	allowedMethods := handlers.AllowedMethods([]string{"GET", "POST", "PUT", "DELETE", "OPTIONS"})
+	allowedHeaders := handlers.AllowedHeaders([]string{"Content-Type", "Authorization"})
+	corsRouter := handlers.CORS(allowedOrigins, allowedMethods, allowedHeaders)(router)
 	// --- End of CORS Setup ---
-
-	// CHQ: Gemini AI replaced corsRouter with this
-	router.Use(corsMiddleware)
 	
-	// Start the HTTP server
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080" // Default port
 	}
 	
 	fmt.Printf("Server listening on port %s...\n", port)
-	// log.Fatal(http.ListenAndServe(":"+port, corsRouter))
-	// CHQ: Gemini AI replaced the above with the below
-    log.Fatal(http.ListenAndServe(":"+port, router)) // Note: Use the original router
+	log.Fatal(http.ListenAndServe(":"+port, corsRouter))
 }
 
 // CHQ: Gemini AI generated function
 // helloHandler is the function that will be executed for requests to the "/" route.
 func helloHandler(w http.ResponseWriter, r *http.Request) {
-	// Set the Content-Type header to inform the browser that the response is HTML.
 	w.Header().Set("Content-Type", "text/html")
-	
-	// Write the "Hello, World!" message as the response body.
-	// This will be a simple, unstyled page with the text.
 	fmt.Fprint(w, "This is the server for the student records app. It's written in Go (aka GoLang).")
 }
 
@@ -258,12 +208,21 @@ func sessionValidationMiddleware(next http.Handler) http.Handler {
 
 // createStudent handles POST requests to create a new student record.
 func createStudent(w http.ResponseWriter, r *http.Request) {
+	teacherID, ok := r.Context().Value(contextKeyTeacherID).(string)
+	if !ok || teacherID == "" {
+		http.Error(w, "Forbidden: Teacher ID not found in session", http.StatusForbidden)
+		return
+	}
+
 	var student Student
 	err := json.NewDecoder(r.Body).Decode(&student)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	
+	// Enforce that the student being created is associated with the authenticated teacher.
+	student.TeacherID = teacherID
 
 	query := `INSERT INTO godbstudents (first_name, last_name, email, major, teacher_id) VALUES ($1, $2, $3, $4, $5) RETURNING id`
 	err = db.QueryRow(query, student.FirstName, student.LastName, student.Email, student.Major, student.TeacherID).Scan(&student.ID)
@@ -310,9 +269,6 @@ func getStudent(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(student)
 }
 
-// CHQ: Gemini AI refactored to filter SQL query by teacherID
-// getAllgodbstudents handles GET requests to retrieve all student records.
-// It now supports an optional `teacherID` query parameter to filter results.
 // getAllgodbstudents handles GET requests to retrieve all student records for the authenticated teacher.
 func getAllgodbstudents(w http.ResponseWriter, r *http.Request) {
 	teacherID, ok := r.Context().Value(contextKeyTeacherID).(string)
