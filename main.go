@@ -1,3 +1,5 @@
+// main.go
+
 package main
 
 import (
@@ -155,6 +157,9 @@ func main() {
     protectedRoutes.HandleFunc("/godbstudents", getAllgodbstudents).Methods("GET")
     protectedRoutes.HandleFunc("/godbstudents/{id}", updateStudent).Methods("PUT")
     protectedRoutes.HandleFunc("/godbstudents/{id}", deleteStudent).Methods("DELETE")
+
+	router.HandleFunc("/restfox/godbstudents", createStudent).Methods("POST")
+    router.HandleFunc("/restfox/godbstudents/{id}", getStudent).Methods("GET")
 
 	// // Define API routes
 	// router.HandleFunc("/godbstudents", createStudent).Methods("POST")
