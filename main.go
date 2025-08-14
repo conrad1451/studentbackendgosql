@@ -17,7 +17,6 @@ import (
 	// Import the handlers package for CORS middleware
 
 	"github.com/descope/go-sdk/descope/client"
-	"github.com/gorilla/handlers"
 )
 
 // Utilizing the context package allows for the transmission of context capabilities like cancellation
@@ -52,6 +51,45 @@ func databaseChosen(chosenDB string) string {
 	default:
 		return "some DB chosen"
 	}
+}
+
+func isPrefixAllowed(anOrigin string, anAllowedPrefix string) bool {
+	return strings.HasPrefix(anOrigin, "https://"+anAllowedPrefix) || strings.HasPrefix(anOrigin, "http://"+anAllowedPrefix);
+}
+
+// CHQ: Gemini AI generated function
+// corsMiddleware dynamically sets the Access-Control-Allow-Origin header
+// for any origin that starts with a specific pattern.
+func corsMiddleware(next http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        // Get the Origin header from the request
+        origin := r.Header.Get("Origin")
+        
+        // Define the allowed prefix for origins
+        // allowedPrefix := os.Getenv("FRONT_END_SITE_PREFIX")+"-git"
+		sitePrefix1 := os.Getenv("FRONT_END_SITE_PREFIX_1")
+		sitePrefix2 := os.Getenv("FRONT_END_SITE_PREFIX_2")
+
+        // Check if the origin starts with the allowed prefix
+        if isPrefixAllowed(origin, sitePrefix1) || isPrefixAllowed(origin, sitePrefix2) {
+            // If it matches, set the exact origin from the request.
+            w.Header().Set("Access-Control-Allow-Origin", origin)
+            w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+            w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+
+            // Handle preflight requests
+            if r.Method == http.MethodOptions {
+                w.WriteHeader(http.StatusOK)
+                return
+            }
+        } else {
+            // For disallowed origins, don't set the CORS headers.
+            // The browser will automatically block the request.
+        }
+
+        // Pass the request to the next handler.
+        next.ServeHTTP(w, r)
+    })
 }
 
 var listOfDBConnections = []string{"NEON_STUDENT_RECORDS_DB", "PROJECT2_DB", "GOOGLE_CLOUD_SQL", "GOOGLE_VM_HOSTED_SQL"}
@@ -110,19 +148,24 @@ func main() {
 	// router.HandleFunc("/godbstudents/{id}", deleteStudent).Methods("DELETE")
 
 	// --- CORS Setup ---
-	allowedOrigins := handlers.AllowedOrigins([]string{"*"})
-	allowedMethods := handlers.AllowedMethods([]string{"GET", "POST", "PUT", "DELETE", "OPTIONS"})
-	allowedHeaders := handlers.AllowedHeaders([]string{"Content-Type", "Authorization"})
-	corsRouter := handlers.CORS(allowedOrigins, allowedMethods, allowedHeaders)(router)
+	// allowedOrigins := handlers.AllowedOrigins([]string{"*"})
+	// allowedMethods := handlers.AllowedMethods([]string{"GET", "POST", "PUT", "DELETE", "OPTIONS"})
+	// allowedHeaders := handlers.AllowedHeaders([]string{"Content-Type", "Authorization"})
+	// corsRouter := handlers.CORS(allowedOrigins, allowedMethods, allowedHeaders)(router)
 	// --- End of CORS Setup ---
 
+	// CHQ: Gemini AI replaced corsRouter with this
+	router.Use(corsMiddleware)
+	
 	// Start the HTTP server
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080" // Default port
 	}
 	fmt.Printf("Server listening on port %s...\n", port)
-	log.Fatal(http.ListenAndServe(":"+port, corsRouter))
+	// log.Fatal(http.ListenAndServe(":"+port, corsRouter))
+	// CHQ: Gemini AI replaced the above with the below
+    log.Fatal(http.ListenAndServe(":"+port, router)) // Note: Use the original router
 }
 
 // CHQ: Gemini AI created function
