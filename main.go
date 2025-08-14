@@ -161,6 +161,10 @@ func main() {
 	// Initialize the router
 	router := mux.NewRouter()
 
+	// All routes now go through the mux router
+	router.HandleFunc("/", helloHandler)
+	router.HandleFunc("/favicon.ico", faviconHandler)
+
    // Protected routes (require session validation)
     protectedRoutes := router.PathPrefix("/api").Subrouter()
     protectedRoutes.Use(sessionValidationMiddleware) // Apply middleware to all routes in this subrouter
@@ -201,8 +205,6 @@ func main() {
 		port = "8080" // Default port
 	}
 	
-	// CHQ: Gemini AI added
-	http.HandleFunc("/favicon.ico", faviconHandler)
 	fmt.Printf("Server listening on port %s...\n", port)
 	// log.Fatal(http.ListenAndServe(":"+port, corsRouter))
 	// CHQ: Gemini AI replaced the above with the below
