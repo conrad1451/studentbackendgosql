@@ -221,7 +221,7 @@ func helloHandler(w http.ResponseWriter, r *http.Request) {
 	
 	// Write the "Hello, World!" message as the response body.
 	// This will be a simple, unstyled page with the text.
-	fmt.Fprint(w, "Hello, World!")
+	fmt.Fprint(w, "This is the server for the student records app. It's written in Go (aka GoLang).")
 }
 
 // CHQ: Gemini AI created function
