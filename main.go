@@ -180,6 +180,8 @@ func main() {
     router.HandleFunc("/restfox/godbstudents/{id}", getAllgodbstudents).Methods("PUT")
     router.HandleFunc("/restfox/godbstudents/{id}", getAllgodbstudents).Methods("DELETE")
 
+	router.HandleFunc("/", helloHandler)
+
 	// // Define API routes
 	// router.HandleFunc("/godbstudents", createStudent).Methods("POST")
 	// router.HandleFunc("/godbstudents/{id}", getStudent).Methods("GET")
@@ -211,9 +213,19 @@ func main() {
     log.Fatal(http.ListenAndServe(":"+port, router)) // Note: Use the original router
 }
 
+// CHQ: Gemini AI generated function
+// helloHandler is the function that will be executed for requests to the "/" route.
+func helloHandler(w http.ResponseWriter, r *http.Request) {
+	// Set the Content-Type header to inform the browser that the response is HTML.
+	w.Header().Set("Content-Type", "text/html")
+	
+	// Write the "Hello, World!" message as the response body.
+	// This will be a simple, unstyled page with the text.
+	fmt.Fprint(w, "Hello, World!")
+}
+
 // CHQ: Gemini AI created function
 // sessionValidationMiddleware is a middleware to validate the Descope session token.
-
 func sessionValidationMiddleware(next http.Handler) http.Handler {
     return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
         sessionToken := r.Header.Get("Authorization")
