@@ -112,6 +112,22 @@ func corsMiddleware(next http.Handler) http.Handler {
 
 var listOfDBConnections = []string{"NEON_STUDENT_RECORDS_DB", "PROJECT2_DB", "GOOGLE_CLOUD_SQL", "GOOGLE_VM_HOSTED_SQL"}
 
+// CHQ: Gemini AI generated this function
+func faviconHandler(w http.ResponseWriter, r *http.Request) {
+    // Open the favicon file
+    favicon, err := os.ReadFile("./static/calculator.ico")
+    if err != nil {
+        http.NotFound(w, r)
+        return
+    }
+
+    // Set the Content-Type header
+    w.Header().Set("Content-Type", "image/x-icon")
+    
+    // Write the file content to the response
+    w.Write(favicon)
+}
+
 func main() {
 	// Initialize database connection
 	var err error
@@ -186,6 +202,9 @@ func main() {
 	if port == "" {
 		port = "8080" // Default port
 	}
+	
+	// CHQ: Gemini AI added
+	http.HandleFunc("/favicon.ico", faviconHandler)
 	fmt.Printf("Server listening on port %s...\n", port)
 	// log.Fatal(http.ListenAndServe(":"+port, corsRouter))
 	// CHQ: Gemini AI replaced the above with the below
