@@ -74,42 +74,38 @@ func isAnyPrefixAllowed(origin string, prefix1 string, prefix2 string, prefix3 s
 	return isPrefixAllowed(origin, prefix1) || isPrefixAllowed(origin, prefix2)|| isPrefixAllowed(origin, prefix3)
 }
 
-// CHQ: Gemini AI generated function
+// CHQ: Gemini AI debugged function
 // corsMiddleware dynamically sets the Access-Control-Allow-Origin header
 // for any origin that starts with a specific pattern.
 func corsMiddleware(next http.Handler) http.Handler {
     return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-        // Get the Origin header from the request
         origin := r.Header.Get("Origin")
-        
-        // Define the allowed prefix for origins
-        // allowedPrefix := os.Getenv("FRONT_END_SITE_PREFIX")+"-git"
-		sitePrefix1 := os.Getenv("FRONT_END_SITE_PREFIX_1")
-		sitePrefix2 := os.Getenv("FRONT_END_SITE_PREFIX_2")
-		sitePrefix3 := os.Getenv("TESTER_1")
+        sitePrefix1 := os.Getenv("FRONT_END_SITE_PREFIX_1")
+        sitePrefix2 := os.Getenv("FRONT_END_SITE_PREFIX_2")
+        sitePrefix3 := os.Getenv("TESTER_1")
 
-        // Check if the origin starts with the allowed prefix
         if isAnyPrefixAllowed(origin, sitePrefix1, sitePrefix2, sitePrefix3) {
-            // If it matches, set the exact origin from the request.
             w.Header().Set("Access-Control-Allow-Origin", origin)
             w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
             w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+            w.Header().Set("Access-Control-Allow-Credentials", "true") // This is important for session tokens
+        }
 
-            // Handle preflight requests
-            if r.Method == http.MethodOptions {
+        // Handle preflight requests
+        if r.Method == http.MethodOptions {
+            if isAnyPrefixAllowed(origin, sitePrefix1, sitePrefix2, sitePrefix3) {
                 w.WriteHeader(http.StatusOK)
                 return
+            } else {
+                http.Error(w, "CORS: Not Allowed", http.StatusForbidden)
+                return
             }
-        } else {
-            // For disallowed origins, don't set the CORS headers.
-            // The browser will automatically block the request.
         }
 
         // Pass the request to the next handler.
         next.ServeHTTP(w, r)
     })
 }
-
 var listOfDBConnections = []string{"NEON_STUDENT_RECORDS_DB", "PROJECT2_DB", "GOOGLE_CLOUD_SQL", "GOOGLE_VM_HOSTED_SQL"}
 
 // CHQ: Gemini AI generated this function
