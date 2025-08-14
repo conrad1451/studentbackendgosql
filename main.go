@@ -34,7 +34,7 @@ type Student struct {
 	LastName  string `json:"last_name"`
 	Email     string `json:"email"`
 	Major     string `json:"major"`
-	TeacherID int    `json:"teacher_id"`
+	TeacherID string `json:"teacher_id"`
 }
 
 var db *sql.DB
