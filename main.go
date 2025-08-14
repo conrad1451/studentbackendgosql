@@ -67,6 +67,11 @@ func isPrefixAllowed(anOrigin string, anAllowedPrefix string) bool {
 	return strings.HasPrefix(anOrigin, "https://"+anAllowedPrefix) || strings.HasPrefix(anOrigin, "http://"+anAllowedPrefix);
 }
 
+
+func isAnyPrefixAllowed(origin string, prefix1 string, prefix2 string, prefix3 string) bool {
+	return isPrefixAllowed(origin, prefix1) || isPrefixAllowed(origin, prefix2)|| isPrefixAllowed(origin, prefix3)
+}
+
 // CHQ: Gemini AI generated function
 // corsMiddleware dynamically sets the Access-Control-Allow-Origin header
 // for any origin that starts with a specific pattern.
@@ -79,9 +84,10 @@ func corsMiddleware(next http.Handler) http.Handler {
         // allowedPrefix := os.Getenv("FRONT_END_SITE_PREFIX")+"-git"
 		sitePrefix1 := os.Getenv("FRONT_END_SITE_PREFIX_1")
 		sitePrefix2 := os.Getenv("FRONT_END_SITE_PREFIX_2")
+		sitePrefix3 := os.Getenv("TESTER_1")
 
         // Check if the origin starts with the allowed prefix
-        if isPrefixAllowed(origin, sitePrefix1) || isPrefixAllowed(origin, sitePrefix2) {
+        if isAnyPrefixAllowed(origin, sitePrefix1, sitePrefix2, sitePrefix3) {
             // If it matches, set the exact origin from the request.
             w.Header().Set("Access-Control-Allow-Origin", origin)
             w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
