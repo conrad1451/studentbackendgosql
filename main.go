@@ -15,11 +15,9 @@ import (
 
 	// PostgreSQL driver
 	"github.com/gorilla/mux"
-	_ "github.com/lib/pq"
-
-	// Import the handlers package for CORS middleware
 
 	"github.com/descope/go-sdk/descope/client"
+	_ "github.com/lib/pq"
 )
 
 // Utilizing the context package allows for the transmission of context capabilities like cancellation
@@ -74,38 +72,38 @@ func isAnyPrefixAllowed(origin string, prefix1 string, prefix2 string, prefix3 s
 	return isPrefixAllowed(origin, prefix1) || isPrefixAllowed(origin, prefix2)|| isPrefixAllowed(origin, prefix3)
 }
 
-// CHQ: Gemini AI debugged function
-// corsMiddleware dynamically sets the Access-Control-Allow-Origin header
-// for any origin that starts with a specific pattern.
-func corsMiddleware(next http.Handler) http.Handler {
-    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-        origin := r.Header.Get("Origin")
-        sitePrefix1 := os.Getenv("FRONT_END_SITE_PREFIX_1")
-        sitePrefix2 := os.Getenv("FRONT_END_SITE_PREFIX_2")
-        sitePrefix3 := os.Getenv("TESTER_1")
+// // CHQ: Gemini AI debugged function
+// // corsMiddleware dynamically sets the Access-Control-Allow-Origin header
+// // for any origin that starts with a specific pattern.
+// func corsMiddleware(next http.Handler) http.Handler {
+//     return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+//         origin := r.Header.Get("Origin")
+//         sitePrefix1 := os.Getenv("FRONT_END_SITE_PREFIX_1")
+//         sitePrefix2 := os.Getenv("FRONT_END_SITE_PREFIX_2")
+//         sitePrefix3 := os.Getenv("TESTER_1")
 
-        if isAnyPrefixAllowed(origin, sitePrefix1, sitePrefix2, sitePrefix3) {
-            w.Header().Set("Access-Control-Allow-Origin", origin)
-            w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-            w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-            w.Header().Set("Access-Control-Allow-Credentials", "true") // This is important for session tokens
-        }
+//         if isAnyPrefixAllowed(origin, sitePrefix1, sitePrefix2, sitePrefix3) {
+//             w.Header().Set("Access-Control-Allow-Origin", origin)
+//             w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+//             w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+//             w.Header().Set("Access-Control-Allow-Credentials", "true") // This is important for session tokens
+//         }
 
-        // Handle preflight requests
-        if r.Method == http.MethodOptions {
-            if isAnyPrefixAllowed(origin, sitePrefix1, sitePrefix2, sitePrefix3) {
-                w.WriteHeader(http.StatusOK)
-                return
-            } else {
-                http.Error(w, "CORS: Not Allowed", http.StatusForbidden)
-                return
-            }
-        }
+//         // Handle preflight requests
+//         if r.Method == http.MethodOptions {
+//             if isAnyPrefixAllowed(origin, sitePrefix1, sitePrefix2, sitePrefix3) {
+//                 w.WriteHeader(http.StatusOK)
+//                 return
+//             } else {
+//                 http.Error(w, "CORS: Not Allowed", http.StatusForbidden)
+//                 return
+//             }
+//         }
 
-        // Pass the request to the next handler.
-        next.ServeHTTP(w, r)
-    })
-}
+//         // Pass the request to the next handler.
+//         next.ServeHTTP(w, r)
+//     })
+// }
 var listOfDBConnections = []string{"NEON_STUDENT_RECORDS_DB", "PROJECT2_DB", "GOOGLE_CLOUD_SQL", "GOOGLE_VM_HOSTED_SQL"}
 
 // CHQ: Gemini AI generated this function
