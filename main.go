@@ -1,6 +1,9 @@
+// main.go
+
 package main
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -37,6 +40,15 @@ type Student struct {
 var db *sql.DB
 var descopeClient *client.DescopeClient
  
+
+// Define a custom key type to avoid collisions
+type contextKey string
+
+const contextKeyUserID contextKey = "userID"
+const contextKeyTeacherID contextKey = "teacherID" // A key for the teacher ID
+
+
+
 // [1]
 func databaseChosen(chosenDB string) string {
 	switch chosenDB {
@@ -57,6 +69,11 @@ func isPrefixAllowed(anOrigin string, anAllowedPrefix string) bool {
 	return strings.HasPrefix(anOrigin, "https://"+anAllowedPrefix) || strings.HasPrefix(anOrigin, "http://"+anAllowedPrefix);
 }
 
+
+func isAnyPrefixAllowed(origin string, prefix1 string, prefix2 string, prefix3 string) bool {
+	return isPrefixAllowed(origin, prefix1) || isPrefixAllowed(origin, prefix2)|| isPrefixAllowed(origin, prefix3)
+}
+
 // CHQ: Gemini AI generated function
 // corsMiddleware dynamically sets the Access-Control-Allow-Origin header
 // for any origin that starts with a specific pattern.
@@ -69,9 +86,10 @@ func corsMiddleware(next http.Handler) http.Handler {
         // allowedPrefix := os.Getenv("FRONT_END_SITE_PREFIX")+"-git"
 		sitePrefix1 := os.Getenv("FRONT_END_SITE_PREFIX_1")
 		sitePrefix2 := os.Getenv("FRONT_END_SITE_PREFIX_2")
+		sitePrefix3 := os.Getenv("TESTER_1")
 
         // Check if the origin starts with the allowed prefix
-        if isPrefixAllowed(origin, sitePrefix1) || isPrefixAllowed(origin, sitePrefix2) {
+        if isAnyPrefixAllowed(origin, sitePrefix1, sitePrefix2, sitePrefix3) {
             // If it matches, set the exact origin from the request.
             w.Header().Set("Access-Control-Allow-Origin", origin)
             w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
@@ -140,6 +158,9 @@ func main() {
     protectedRoutes.HandleFunc("/godbstudents/{id}", updateStudent).Methods("PUT")
     protectedRoutes.HandleFunc("/godbstudents/{id}", deleteStudent).Methods("DELETE")
 
+	router.HandleFunc("/restfox/godbstudents", createStudent).Methods("POST")
+    router.HandleFunc("/restfox/godbstudents/{id}", getStudent).Methods("GET")
+
 	// // Define API routes
 	// router.HandleFunc("/godbstudents", createStudent).Methods("POST")
 	// router.HandleFunc("/godbstudents/{id}", getStudent).Methods("GET")
@@ -170,27 +191,51 @@ func main() {
 
 // CHQ: Gemini AI created function
 // sessionValidationMiddleware is a middleware to validate the Descope session token.
+
 func sessionValidationMiddleware(next http.Handler) http.Handler {
     return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-        // Extract the session token from the Authorization header
         sessionToken := r.Header.Get("Authorization")
         if sessionToken == "" {
             http.Error(w, "Unauthorized: No session token provided", http.StatusUnauthorized)
             return
         }
-        // Remove the "Bearer " prefix if it exists
+
         sessionToken = strings.TrimPrefix(sessionToken, "Bearer ")
 
         ctx := r.Context()
-        authorized, _, err := descopeClient.Auth.ValidateSessionWithToken(ctx, sessionToken)
+        // Validate the session token and get the Descope token
+        authorized, token, err := descopeClient.Auth.ValidateSessionWithToken(ctx, sessionToken)
         if err != nil || !authorized {
             log.Printf("Session validation failed: %v", err)
             http.Error(w, "Unauthorized: Invalid session token", http.StatusUnauthorized)
             return
         }
 
-        // If the session is valid, call the next handler
-        next.ServeHTTP(w, r)
+        // Extract the userID from the validated token
+        userID := token.ID
+        if userID == "" {
+            http.Error(w, "Unauthorized: User ID not found in token", http.StatusUnauthorized)
+            return
+        }
+        
+        // Extract the teacher ID from the token's custom claims or other fields
+        // This is a placeholder, you'll need to know the specific claim key.
+        // For this example, we assume the teacher ID is an integer stored in a custom claim called 'teacher_id'.
+        // var teacherID int
+        // // Let's assume you have a custom claim for teacher_id
+        // if val, ok := token.CustomClaims["teacher_id"]; ok {
+        //     if floatVal, ok := val.(float64); ok {
+        //         teacherID = int(floatVal)
+        //     }
+        // }
+        
+        // Store the user ID and teacher ID in the request's context
+        ctxWithUserID := context.WithValue(ctx, contextKeyUserID, userID)
+        // ctxWithIDs := context.WithValue(ctxWithUserID, contextKeyTeacherID, teacherID)
+        
+        // Pass the request with the updated context to the next handler
+        // next.ServeHTTP(w, r.WithContext(ctxWithIDs))
+		next.ServeHTTP(w, r.WithContext(ctxWithUserID))
     })
 }
 
@@ -241,58 +286,47 @@ func getStudent(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(student)
 }
 
+// CHQ: Gemini AI refactored to filter SQL query by teacherID
 // getAllgodbstudents handles GET requests to retrieve all student records.
 // It now supports an optional `teacherID` query parameter to filter results.
 func getAllgodbstudents(w http.ResponseWriter, r *http.Request) {
-	var godbstudents []Student
-	
-	// Get query parameters from the request
-	queryParams := r.URL.Query()
-	teacherIDStr := queryParams.Get("teacherID")
+    // 1. Get the teacherID from the request context (added by your middleware).
+    teacherID, ok := r.Context().Value(contextKeyTeacherID).(int)
+    if !ok || teacherID == 0 {
+        http.Error(w, "Forbidden: Teacher ID not found in session", http.StatusForbidden)
+        return
+    }
 
-	var rows *sql.Rows
-	var err error
+    var students []Student
+    // 2. Modify the SQL query to filter by the authenticated teacherID.
+    // The WHERE clause is crucial here.
+    query := `SELECT id, first_name, last_name, email, major, teacher_id FROM godbstudents WHERE teacher_id = $1 ORDER BY id`
+    rows, err := db.Query(query, teacherID)
 
-	// If a teacherID is provided, filter the results
-	if teacherIDStr != "" {
-		teacherID, err := strconv.Atoi(teacherIDStr)
-		if err != nil {
-			http.Error(w, "Invalid teacherID query parameter", http.StatusBadRequest)
-			return
-		}
-		query := `SELECT id, first_name, last_name, email, major, teacher_id FROM godbstudents WHERE teacher_id = $1 ORDER BY id`
-		rows, err = db.Query(query, teacherID)
-	} else {
-		// Otherwise, retrieve all students
-		query := `SELECT id, first_name, last_name, email, major, teacher_id FROM godbstudents ORDER BY id`
-		rows, err = db.Query(query)
-	}
+    if err != nil {
+        http.Error(w, fmt.Sprintf("Error retrieving students: %v", err), http.StatusInternalServerError)
+        return
+    }
+    defer rows.Close()
 
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Error retrieving godbstudents: %v", err), http.StatusInternalServerError)
-		return
-	}
-	defer rows.Close()
+    for rows.Next() {
+        var student Student
+        err := rows.Scan(&student.ID, &student.FirstName, &student.LastName, &student.Email, &student.Major, &student.TeacherID)
+        if err != nil {
+            log.Printf("Error scanning student row: %v", err)
+            continue
+        }
+        students = append(students, student)
+    }
 
-	for rows.Next() {
-		var student Student
-		err := rows.Scan(&student.ID, &student.FirstName, &student.LastName, &student.Email, &student.Major, &student.TeacherID)
-		if err != nil {
-			log.Printf("Error scanning student row: %v", err)
-			continue
-		}
-		godbstudents = append(godbstudents, student)
-	}
+    if err = rows.Err(); err != nil {
+        http.Error(w, fmt.Sprintf("Error iterating over student rows: %v", err), http.StatusInternalServerError)
+        return
+    }
 
-	if err = rows.Err(); err != nil {
-		http.Error(w, fmt.Sprintf("Error iterating over student rows: %v", err), http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(godbstudents)
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(students)
 }
-
 // updateStudent handles PUT requests to update an existing student record.
 func updateStudent(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
