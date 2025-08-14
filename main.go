@@ -8,14 +8,22 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 
 	// PostgreSQL driver
 	"github.com/gorilla/mux"
 	_ "github.com/lib/pq"
 
 	// Import the handlers package for CORS middleware
+
+	"github.com/descope/go-sdk/descope/client"
 	"github.com/gorilla/handlers"
 )
+
+// Utilizing the context package allows for the transmission of context capabilities like cancellation
+//      signals during the function call. In cases where context is absent, the context.Background()
+//      function serves as a viable alternative.
+//      Utilizing context within the Descope GO SDK is supported within versions 1.6.0 and higher.
 
 // Student represents a student record in the database.
 type Student struct {
@@ -28,7 +36,8 @@ type Student struct {
 }
 
 var db *sql.DB
-
+var descopeClient *client.DescopeClient
+ 
 // [1]
 func databaseChosen(chosenDB string) string {
 	switch chosenDB {
@@ -69,15 +78,36 @@ func main() {
 	fmt.Println("Successfully connected to the database!")
 	fmt.Println(databaseChosen(theChosenDB))
 
+	// CHQ: Gemini AI added descope verification
+    // Initialize Descope client once at the start
+    // var err error
+    projectID := os.Getenv("DESCOPE_PROJECT_ID")
+    if projectID == "" {
+        log.Fatal("DESCOPE_PROJECT_ID environment variable not set.")
+    }
+    descopeClient, err = client.NewWithConfig(&client.Config{ProjectID: projectID})
+    if err != nil {
+        log.Fatalf("failed to initialize Descope client: %v", err)
+    }
+
 	// Initialize the router
 	router := mux.NewRouter()
 
-	// Define API routes
-	router.HandleFunc("/godbstudents", createStudent).Methods("POST")
-	router.HandleFunc("/godbstudents/{id}", getStudent).Methods("GET")
-	router.HandleFunc("/godbstudents", getAllgodbstudents).Methods("GET")
-	router.HandleFunc("/godbstudents/{id}", updateStudent).Methods("PUT")
-	router.HandleFunc("/godbstudents/{id}", deleteStudent).Methods("DELETE")
+   // Protected routes (require session validation)
+    protectedRoutes := router.PathPrefix("/api").Subrouter()
+    protectedRoutes.Use(sessionValidationMiddleware) // Apply middleware to all routes in this subrouter
+    protectedRoutes.HandleFunc("/godbstudents", createStudent).Methods("POST")
+    protectedRoutes.HandleFunc("/godbstudents/{id}", getStudent).Methods("GET")
+    protectedRoutes.HandleFunc("/godbstudents", getAllgodbstudents).Methods("GET")
+    protectedRoutes.HandleFunc("/godbstudents/{id}", updateStudent).Methods("PUT")
+    protectedRoutes.HandleFunc("/godbstudents/{id}", deleteStudent).Methods("DELETE")
+
+	// // Define API routes
+	// router.HandleFunc("/godbstudents", createStudent).Methods("POST")
+	// router.HandleFunc("/godbstudents/{id}", getStudent).Methods("GET")
+	// router.HandleFunc("/godbstudents", getAllgodbstudents).Methods("GET")
+	// router.HandleFunc("/godbstudents/{id}", updateStudent).Methods("PUT")
+	// router.HandleFunc("/godbstudents/{id}", deleteStudent).Methods("DELETE")
 
 	// --- CORS Setup ---
 	allowedOrigins := handlers.AllowedOrigins([]string{"*"})
@@ -93,6 +123,32 @@ func main() {
 	}
 	fmt.Printf("Server listening on port %s...\n", port)
 	log.Fatal(http.ListenAndServe(":"+port, corsRouter))
+}
+
+// CHQ: Gemini AI created function
+// sessionValidationMiddleware is a middleware to validate the Descope session token.
+func sessionValidationMiddleware(next http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        // Extract the session token from the Authorization header
+        sessionToken := r.Header.Get("Authorization")
+        if sessionToken == "" {
+            http.Error(w, "Unauthorized: No session token provided", http.StatusUnauthorized)
+            return
+        }
+        // Remove the "Bearer " prefix if it exists
+        sessionToken = strings.TrimPrefix(sessionToken, "Bearer ")
+
+        ctx := r.Context()
+        authorized, _, err := descopeClient.Auth.ValidateSessionWithToken(ctx, sessionToken)
+        if err != nil || !authorized {
+            log.Printf("Session validation failed: %v", err)
+            http.Error(w, "Unauthorized: Invalid session token", http.StatusUnauthorized)
+            return
+        }
+
+        // If the session is valid, call the next handler
+        next.ServeHTTP(w, r)
+    })
 }
 
 // createStudent handles POST requests to create a new student record.
