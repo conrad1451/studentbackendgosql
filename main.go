@@ -174,13 +174,11 @@ func main() {
     protectedRoutes.HandleFunc("/godbstudents/{id}", updateStudent).Methods("PUT")
     protectedRoutes.HandleFunc("/godbstudents/{id}", deleteStudent).Methods("DELETE")
 
-	router.HandleFunc("/restfox/godbstudents", createStudent).Methods("POST")
-    router.HandleFunc("/restfox/godbstudents/{id}", getStudent).Methods("GET")
-    router.HandleFunc("/restfox/godbstudents", getAllgodbstudents).Methods("GET")
-    router.HandleFunc("/restfox/godbstudents/{id}", getAllgodbstudents).Methods("PUT")
-    router.HandleFunc("/restfox/godbstudents/{id}", getAllgodbstudents).Methods("DELETE")
-
-	router.HandleFunc("/", helloHandler)
+	// router.HandleFunc("/restfox/godbstudents", createStudent).Methods("POST")
+    // router.HandleFunc("/restfox/godbstudents/{id}", getStudent).Methods("GET")
+    // router.HandleFunc("/restfox/godbstudents", getAllgodbstudents).Methods("GET")
+    // router.HandleFunc("/restfox/godbstudents/{id}", getAllgodbstudents).Methods("PUT")
+    // router.HandleFunc("/restfox/godbstudents/{id}", getAllgodbstudents).Methods("DELETE")
 
 	// // Define API routes
 	// router.HandleFunc("/godbstudents", createStudent).Methods("POST")
