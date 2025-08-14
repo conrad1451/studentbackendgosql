@@ -221,50 +221,39 @@ func helloHandler(w http.ResponseWriter, r *http.Request) {
 // CHQ: Gemini AI created function
 // sessionValidationMiddleware is a middleware to validate the Descope session token.
 func sessionValidationMiddleware(next http.Handler) http.Handler {
-    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-        sessionToken := r.Header.Get("Authorization")
-        if sessionToken == "" {
-            http.Error(w, "Unauthorized: No session token provided", http.StatusUnauthorized)
-            return
-        }
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sessionToken := r.Header.Get("Authorization")
+		if sessionToken == "" {
+			http.Error(w, "Unauthorized: No session token provided", http.StatusUnauthorized)
+			return
+		}
 
-        sessionToken = strings.TrimPrefix(sessionToken, "Bearer ")
+		sessionToken = strings.TrimPrefix(sessionToken, "Bearer ")
 
-        ctx := r.Context()
-        // Validate the session token and get the Descope token
-        authorized, token, err := descopeClient.Auth.ValidateSessionWithToken(ctx, sessionToken)
-        if err != nil || !authorized {
-            log.Printf("Session validation failed: %v", err)
-            http.Error(w, "Unauthorized: Invalid session token", http.StatusUnauthorized)
-            return
-        }
+		ctx := r.Context()
+		authorized, token, err := descopeClient.Auth.ValidateSessionWithToken(ctx, sessionToken)
+		if err != nil || !authorized {
+			log.Printf("Session validation failed: %v", err)
+			http.Error(w, "Unauthorized: Invalid session token", http.StatusUnauthorized)
+			return
+		}
 
-        // Extract the userID from the validated token
-        userID := token.ID
-        if userID == "" {
-            http.Error(w, "Unauthorized: User ID not found in token", http.StatusUnauthorized)
-            return
-        }
-        
-        // Extract the teacher ID from the token's custom claims or other fields
-        // This is a placeholder, you'll need to know the specific claim key.
-        // For this example, we assume the teacher ID is an integer stored in a custom claim called 'teacher_id'.
-        // var teacherID int
-        // // Let's assume you have a custom claim for teacher_id
-        // if val, ok := token.CustomClaims["teacher_id"]; ok {
-        //     if floatVal, ok := val.(float64); ok {
-        //         teacherID = int(floatVal)
-        //     }
-        // }
-        
-        // Store the user ID and teacher ID in the request's context
-        ctxWithUserID := context.WithValue(ctx, contextKeyUserID, userID)
-        // ctxWithIDs := context.WithValue(ctxWithUserID, contextKeyTeacherID, teacherID)
-        
-        // Pass the request with the updated context to the next handler
-        // next.ServeHTTP(w, r.WithContext(ctxWithIDs))
-		next.ServeHTTP(w, r.WithContext(ctxWithUserID))
-    })
+		userID := token.ID
+		if userID == "" {
+			http.Error(w, "Unauthorized: User ID not found in token", http.StatusUnauthorized)
+			return
+		}
+		
+		// For this example, we assume the teacher ID is the same as the user ID.
+		// In a real-world app, you would extract this from custom claims in the token.
+		teacherID := userID
+
+		// Store the user ID and teacher ID in the request's context
+		ctxWithUserID := context.WithValue(ctx, contextKeyUserID, userID)
+		ctxWithIDs := context.WithValue(ctxWithUserID, contextKeyTeacherID, teacherID)
+		
+		next.ServeHTTP(w, r.WithContext(ctxWithIDs))
+	})
 }
 
 // createStudent handles POST requests to create a new student record.
@@ -288,8 +277,14 @@ func createStudent(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(student)
 }
 
-// getStudent handles GET requests to retrieve a single student by ID.
+// getStudent handles GET requests to retrieve a single student by ID, but also checks for ownership.
 func getStudent(w http.ResponseWriter, r *http.Request) {
+	teacherID, ok := r.Context().Value(contextKeyTeacherID).(string)
+	if !ok || teacherID == "" {
+		http.Error(w, "Forbidden: Teacher ID not found in session", http.StatusForbidden)
+		return
+	}
+	
 	vars := mux.Vars(r)
 	id, err := strconv.Atoi(vars["id"])
 	if err != nil {
@@ -298,12 +293,13 @@ func getStudent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var student Student
-	query := `SELECT id, first_name, last_name, email, major, teacher_id FROM godbstudents WHERE id = $1`
-	row := db.QueryRow(query, id)
+	// Ensure the student belongs to the authenticated teacher.
+	query := `SELECT id, first_name, last_name, email, major, teacher_id FROM godbstudents WHERE id = $1 AND teacher_id = $2`
+	row := db.QueryRow(query, id, teacherID)
 
 	err = row.Scan(&student.ID, &student.FirstName, &student.LastName, &student.Email, &student.Major, &student.TeacherID)
 	if err == sql.ErrNoRows {
-		http.Error(w, "Student not found", http.StatusNotFound)
+		http.Error(w, "Student not found or not owned by this teacher", http.StatusNotFound)
 		return
 	} else if err != nil {
 		http.Error(w, fmt.Sprintf("Error retrieving student: %v", err), http.StatusInternalServerError)
@@ -317,46 +313,50 @@ func getStudent(w http.ResponseWriter, r *http.Request) {
 // CHQ: Gemini AI refactored to filter SQL query by teacherID
 // getAllgodbstudents handles GET requests to retrieve all student records.
 // It now supports an optional `teacherID` query parameter to filter results.
+// getAllgodbstudents handles GET requests to retrieve all student records for the authenticated teacher.
 func getAllgodbstudents(w http.ResponseWriter, r *http.Request) {
-    // 1. Get the teacherID from the request context (added by your middleware).
-    teacherID, ok := r.Context().Value(contextKeyTeacherID).(int)
-    if !ok || teacherID == 0 {
-        http.Error(w, "Forbidden: Teacher ID not found in session", http.StatusForbidden)
-        return
-    }
+	teacherID, ok := r.Context().Value(contextKeyTeacherID).(string)
+	if !ok || teacherID == "" {
+		http.Error(w, "Forbidden: Teacher ID not found in session", http.StatusForbidden)
+		return
+	}
 
-    var students []Student
-    // 2. Modify the SQL query to filter by the authenticated teacherID.
-    // The WHERE clause is crucial here.
-    query := `SELECT id, first_name, last_name, email, major, teacher_id FROM godbstudents WHERE teacher_id = $1 ORDER BY id`
-    rows, err := db.Query(query, teacherID)
+	var students []Student
+	query := `SELECT id, first_name, last_name, email, major, teacher_id FROM godbstudents WHERE teacher_id = $1 ORDER BY id`
+	rows, err := db.Query(query, teacherID)
 
-    if err != nil {
-        http.Error(w, fmt.Sprintf("Error retrieving students: %v", err), http.StatusInternalServerError)
-        return
-    }
-    defer rows.Close()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Error retrieving students: %v", err), http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
 
-    for rows.Next() {
-        var student Student
-        err := rows.Scan(&student.ID, &student.FirstName, &student.LastName, &student.Email, &student.Major, &student.TeacherID)
-        if err != nil {
-            log.Printf("Error scanning student row: %v", err)
-            continue
-        }
-        students = append(students, student)
-    }
+	for rows.Next() {
+		var student Student
+		err := rows.Scan(&student.ID, &student.FirstName, &student.LastName, &student.Email, &student.Major, &student.TeacherID)
+		if err != nil {
+			log.Printf("Error scanning student row: %v", err)
+			continue
+		}
+		students = append(students, student)
+	}
 
-    if err = rows.Err(); err != nil {
-        http.Error(w, fmt.Sprintf("Error iterating over student rows: %v", err), http.StatusInternalServerError)
-        return
-    }
+	if err = rows.Err(); err != nil {
+		http.Error(w, fmt.Sprintf("Error iterating over student rows: %v", err), http.StatusInternalServerError)
+		return
+	}
 
-    w.Header().Set("Content-Type", "application/json")
-    json.NewEncoder(w).Encode(students)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(students)
 }
-// updateStudent handles PUT requests to update an existing student record.
+// updateStudent handles PUT requests to update an existing student record, with an ownership check.
 func updateStudent(w http.ResponseWriter, r *http.Request) {
+	teacherID, ok := r.Context().Value(contextKeyTeacherID).(string)
+	if !ok || teacherID == "" {
+		http.Error(w, "Forbidden: Teacher ID not found in session", http.StatusForbidden)
+		return
+	}
+
 	vars := mux.Vars(r)
 	id, err := strconv.Atoi(vars["id"])
 	if err != nil {
@@ -370,15 +370,18 @@ func updateStudent(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-
+	
 	if student.ID != 0 && student.ID != id {
 		http.Error(w, "ID in URL and request body do not match", http.StatusBadRequest)
 		return
 	}
-	student.ID = id
 
-	query := `UPDATE godbstudents SET first_name = $1, last_name = $2, email = $3, major = $4, teacher_id = $5 WHERE id = $6`
-	result, err := db.Exec(query, student.FirstName, student.LastName, student.Email, student.Major, student.TeacherID, student.ID)
+	// The teacherID from the request body is ignored and replaced with the authenticated teacher's ID
+	student.TeacherID = teacherID
+	
+	query := `UPDATE godbstudents SET first_name = $1, last_name = $2, email = $3, major = $4 WHERE id = $5 AND teacher_id = $6`
+	result, err := db.Exec(query, student.FirstName, student.LastName, student.Email, student.Major, id, student.TeacherID)
+	
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Error updating student: %v", err), http.StatusInternalServerError)
 		return
@@ -390,7 +393,7 @@ func updateStudent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if rowsAffected == 0 {
-		http.Error(w, "Student not found or no changes made", http.StatusNotFound)
+		http.Error(w, "Student not found or not owned by this teacher", http.StatusNotFound)
 		return
 	}
 
@@ -398,17 +401,25 @@ func updateStudent(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"message": "Student updated successfully"})
 }
 
-// deleteStudent handles DELETE requests to delete a student record by ID.
+// deleteStudent handles DELETE requests to delete a student record by ID, with an ownership check.
 func deleteStudent(w http.ResponseWriter, r *http.Request) {
+	teacherID, ok := r.Context().Value(contextKeyTeacherID).(string)
+	if !ok || teacherID == "" {
+		http.Error(w, "Forbidden: Teacher ID not found in session", http.StatusForbidden)
+		return
+	}
+	
 	vars := mux.Vars(r)
 	id, err := strconv.Atoi(vars["id"])
 	if err != nil {
 		http.Error(w, "Invalid student ID", http.StatusBadRequest)
 		return
 	}
-
-	query := `DELETE FROM godbstudents WHERE id = $1`
-	result, err := db.Exec(query, id)
+	
+	// Ensure the student belongs to the authenticated teacher.
+	query := `DELETE FROM godbstudents WHERE id = $1 AND teacher_id = $2`
+	result, err := db.Exec(query, id, teacherID)
+	
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Error deleting student: %v", err), http.StatusInternalServerError)
 		return
@@ -420,7 +431,7 @@ func deleteStudent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if rowsAffected == 0 {
-		http.Error(w, "Student not found", http.StatusNotFound)
+		http.Error(w, "Student not found or not owned by this teacher", http.StatusNotFound)
 		return
 	}
 
