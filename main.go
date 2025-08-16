@@ -147,7 +147,17 @@ func main() {
 	// router.HandleFunc("/godbstudents/{id}", deleteStudent).Methods("DELETE")
 
 	// --- CORS Setup ---
-	allowedOrigins := handlers.AllowedOrigins([]string{"*"})
+
+	originList := []string{
+		"https://studentfrontendreact.vercel.app", 
+		"http://studentfrontendreact.vercel.app",
+		"https://localhost:5173",
+		"http://localhost:5173",
+		"https://localhost:5174",
+		"http://localhost:5174",
+	}
+
+	allowedOrigins := handlers.AllowedOrigins(originList)
 	allowedMethods := handlers.AllowedMethods([]string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"})
 	allowedHeaders := handlers.AllowedHeaders([]string{"Content-Type", "Authorization"})
 	corsRouter := handlers.CORS(allowedOrigins, allowedMethods, allowedHeaders)(router)
