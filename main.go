@@ -130,7 +130,8 @@ func main() {
     protectedRoutes.HandleFunc("/godbstudents/{id}", getStudent).Methods("GET")
     protectedRoutes.HandleFunc("/godbstudents", getAllgodbstudents).Methods("GET")
     protectedRoutes.HandleFunc("/godbstudents/{id}", updateStudent).Methods("PUT")
-    protectedRoutes.HandleFunc("/godbstudents/{id}", deleteStudent).Methods("DELETE")
+    protectedRoutes.HandleFunc("/godbstudents/{id}", updateStudentAlt).Methods("PATCH")
+	protectedRoutes.HandleFunc("/godbstudents/{id}", deleteStudent).Methods("DELETE")
 
 	// router.HandleFunc("/restfox/godbstudents", createStudent).Methods("POST")
     // router.HandleFunc("/restfox/godbstudents/{id}", getStudent).Methods("GET")
@@ -147,7 +148,7 @@ func main() {
 
 	// --- CORS Setup ---
 	allowedOrigins := handlers.AllowedOrigins([]string{"*"})
-	allowedMethods := handlers.AllowedMethods([]string{"GET", "POST", "PUT", "DELETE", "OPTIONS"})
+	allowedMethods := handlers.AllowedMethods([]string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"})
 	allowedHeaders := handlers.AllowedHeaders([]string{"Content-Type", "Authorization"})
 	corsRouter := handlers.CORS(allowedOrigins, allowedMethods, allowedHeaders)(router)
 	// --- End of CORS Setup ---
@@ -307,6 +308,59 @@ func getAllgodbstudents(w http.ResponseWriter, r *http.Request) {
 }
 // updateStudent handles PUT requests to update an existing student record, with an ownership check.
 func updateStudent(w http.ResponseWriter, r *http.Request) {
+	teacherID, ok := r.Context().Value(contextKeyTeacherID).(string)
+	if !ok || teacherID == "" {
+		http.Error(w, "Forbidden: Teacher ID not found in session", http.StatusForbidden)
+		return
+	}
+
+	vars := mux.Vars(r)
+	id, err := strconv.Atoi(vars["id"])
+	if err != nil {
+		http.Error(w, "Invalid student ID", http.StatusBadRequest)
+		return
+	}
+
+	var student Student
+	err = json.NewDecoder(r.Body).Decode(&student)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	
+	if student.ID != 0 && student.ID != id {
+		http.Error(w, "ID in URL and request body do not match", http.StatusBadRequest)
+		return
+	}
+
+	// The teacherID from the request body is ignored and replaced with the authenticated teacher's ID
+	student.TeacherID = teacherID
+	
+	query := `UPDATE godbstudents SET first_name = $1, last_name = $2, email = $3, major = $4 WHERE id = $5 AND teacher_id = $6`
+	result, err := db.Exec(query, student.FirstName, student.LastName, student.Email, student.Major, id, student.TeacherID)
+	
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Error updating student: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Error checking rows affected: %v", err), http.StatusInternalServerError)
+		return
+	}
+	if rowsAffected == 0 {
+		http.Error(w, "Student not found or not owned by this teacher", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"message": "Student updated successfully"})
+}
+
+
+// updateStudentAlt handles PATCH requests to update an existing student record, with an ownership check.
+func updateStudentAlt(w http.ResponseWriter, r *http.Request) {
 	teacherID, ok := r.Context().Value(contextKeyTeacherID).(string)
 	if !ok || teacherID == "" {
 		http.Error(w, "Forbidden: Teacher ID not found in session", http.StatusForbidden)
