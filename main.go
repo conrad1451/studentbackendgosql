@@ -40,6 +40,7 @@ type Student struct {
 var db *sql.DB
 var descopeClient *client.DescopeClient
 
+var isAnAdmin bool
 // Define a custom key type to avoid collisions
 type contextKey string
 
@@ -147,7 +148,17 @@ func main() {
 	// router.HandleFunc("/godbstudents/{id}", deleteStudent).Methods("DELETE")
 
 	// --- CORS Setup ---
-	allowedOrigins := handlers.AllowedOrigins([]string{"*"})
+
+	originList := []string{
+		"https://studentfrontendreact.vercel.app", 
+		"http://studentfrontendreact.vercel.app",
+		"https://localhost:5173",
+		"http://localhost:5173",
+		"https://localhost:5174",
+		"http://localhost:5174",
+	}
+
+	allowedOrigins := handlers.AllowedOrigins(originList)
 	allowedMethods := handlers.AllowedMethods([]string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"})
 	allowedHeaders := handlers.AllowedHeaders([]string{"Content-Type", "Authorization"})
 	corsRouter := handlers.CORS(allowedOrigins, allowedMethods, allowedHeaders)(router)
@@ -188,8 +199,16 @@ func sessionValidationMiddleware(next http.Handler) http.Handler {
 			http.Error(w, "Unauthorized: Invalid session token", http.StatusUnauthorized)
 			return
 		}
+		if descopeClient.Auth.ValidateRoles(context.Background(), token, []string{"School Administrator"}) {
+			isAnAdmin = true
+		} else {
+			isAnAdmin = false
+		}
 
 		userID := token.ID
+		// userRole := token.GetTenants()
+		// userRole := token.GetTenantValue()
+		// userRole := token.GetTenants()
 		if userID == "" {
 			http.Error(w, "Unauthorized: User ID not found in token", http.StatusUnauthorized)
 			return
@@ -208,7 +227,29 @@ func sessionValidationMiddleware(next http.Handler) http.Handler {
 }
 
 // createStudent handles POST requests to create a new student record.
-func createStudent(w http.ResponseWriter, r *http.Request) {
+func createStudentAsAdmin(w http.ResponseWriter, r *http.Request) {
+ 
+	var student Student
+	err := json.NewDecoder(r.Body).Decode(&student)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+ 
+	query := `INSERT INTO godbstudents (first_name, last_name, email, major) VALUES ($1, $2, $3, $4) RETURNING id`
+	err = db.QueryRow(query, student.FirstName, student.LastName, student.Email, student.Major).Scan(&student.ID)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Error creating student: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(student)
+}
+
+// createStudent handles POST requests to create a new student record.
+func createStudentAsTeacher(w http.ResponseWriter, r *http.Request) {
 	teacherID, ok := r.Context().Value(contextKeyTeacherID).(string)
 	if !ok || teacherID == "" {
 		http.Error(w, "Forbidden: Teacher ID not found in session", http.StatusForbidden)
@@ -237,8 +278,42 @@ func createStudent(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(student)
 }
 
+func createStudent(w http.ResponseWriter, r *http.Request){
+	if (isAnAdmin) {
+		createStudentAsAdmin(w, r)
+	} else {
+		createStudentAsTeacher(w, r)
+	}
+}
+
+func getStudentAsAdmin(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id, err := strconv.Atoi(vars["id"])
+	if err != nil {
+		http.Error(w, "Invalid student ID", http.StatusBadRequest)
+		return
+	}
+
+	var student Student
+	// Ensure the student belongs to the authenticated teacher.
+	query := `SELECT id, first_name, last_name, email, major FROM godbstudents WHERE id = $1`
+	row := db.QueryRow(query, id)
+
+	err = row.Scan(&student.ID, &student.FirstName, &student.LastName, &student.Email, &student.Major)
+	if err == sql.ErrNoRows {
+		http.Error(w, "Student not found", http.StatusNotFound)
+		return
+	} else if err != nil {
+		http.Error(w, fmt.Sprintf("Error retrieving student: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(student)
+}
+
 // getStudent handles GET requests to retrieve a single student by ID, but also checks for ownership.
-func getStudent(w http.ResponseWriter, r *http.Request) {
+func getStudentAsTeacher(w http.ResponseWriter, r *http.Request) {
 	teacherID, ok := r.Context().Value(contextKeyTeacherID).(string)
 	if !ok || teacherID == "" {
 		http.Error(w, "Forbidden: Teacher ID not found in session", http.StatusForbidden)
@@ -270,8 +345,47 @@ func getStudent(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(student)
 }
 
+func getStudent(w http.ResponseWriter, r *http.Request){
+	if (isAnAdmin) {
+		getStudentAsAdmin(w, r)
+	} else {
+		getStudentAsTeacher(w, r)
+	}
+}
+
+
+func getAllgodbstudentsAsAdmin(w http.ResponseWriter) {
+	var students []Student
+	query := `SELECT id, first_name, last_name, email, major FROM godbstudents ORDER BY id`
+	rows, err := db.Query(query)
+
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Error retrieving students: %v", err), http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var student Student
+		err := rows.Scan(&student.ID, &student.FirstName, &student.LastName, &student.Email, &student.Major)
+		if err != nil {
+			log.Printf("Error scanning student row: %v", err)
+			continue
+		}
+		students = append(students, student)
+	}
+
+	if err = rows.Err(); err != nil {
+		http.Error(w, fmt.Sprintf("Error iterating over student rows: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(students)
+}
+
 // getAllgodbstudents handles GET requests to retrieve all student records for the authenticated teacher.
-func getAllgodbstudents(w http.ResponseWriter, r *http.Request) {
+func getAllgodbstudentsAsTeacher(w http.ResponseWriter, r *http.Request) {
 	teacherID, ok := r.Context().Value(contextKeyTeacherID).(string)
 	if !ok || teacherID == "" {
 		http.Error(w, "Forbidden: Teacher ID not found in session", http.StatusForbidden)
@@ -306,8 +420,61 @@ func getAllgodbstudents(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(students)
 }
+
+func getAllgodbstudents(w http.ResponseWriter, r *http.Request){
+	if (isAnAdmin) {
+		getAllgodbstudentsAsAdmin(w)
+	} else {
+		getAllgodbstudentsAsTeacher(w, r)
+	}
+}
+
+
 // updateStudent handles PUT requests to update an existing student record, with an ownership check.
-func updateStudent(w http.ResponseWriter, r *http.Request) {
+func updateStudentAsAdmin(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id, err := strconv.Atoi(vars["id"])
+	if err != nil {
+		http.Error(w, "Invalid student ID", http.StatusBadRequest)
+		return
+	}
+
+	var student Student
+	err = json.NewDecoder(r.Body).Decode(&student)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	
+	if student.ID != 0 && student.ID != id {
+		http.Error(w, "ID in URL and request body do not match", http.StatusBadRequest)
+		return
+	}
+	
+	query := `UPDATE godbstudents SET first_name = $1, last_name = $2, email = $3, major = $4 WHERE id = $5`
+	result, err := db.Exec(query, student.FirstName, student.LastName, student.Email, student.Major, id)
+	
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Error updating student: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Error checking rows affected: %v", err), http.StatusInternalServerError)
+		return
+	}
+	if rowsAffected == 0 {
+		http.Error(w, "Student not found", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"message": "Student updated successfully"})
+}
+
+// updateStudent handles PUT requests to update an existing student record, with an ownership check.
+func updateStudentAsTeacher(w http.ResponseWriter, r *http.Request) {
 	teacherID, ok := r.Context().Value(contextKeyTeacherID).(string)
 	if !ok || teacherID == "" {
 		http.Error(w, "Forbidden: Teacher ID not found in session", http.StatusForbidden)
@@ -356,11 +523,61 @@ func updateStudent(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"message": "Student updated successfully"})
+}
+
+func updateStudent(w http.ResponseWriter, r *http.Request){
+	if (isAnAdmin) {
+		updateStudentAsAdmin(w, r)
+	} else {
+		updateStudentAsTeacher(w, r)
+	}
 }
 
 
 // updateStudentAlt handles PATCH requests to update an existing student record, with an ownership check.
-func updateStudentAlt(w http.ResponseWriter, r *http.Request) {
+func updateStudentAltAsAdmin(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id, err := strconv.Atoi(vars["id"])
+	if err != nil {
+		http.Error(w, "Invalid student ID", http.StatusBadRequest)
+		return
+	}
+
+	var student Student
+	err = json.NewDecoder(r.Body).Decode(&student)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	
+	if student.ID != 0 && student.ID != id {
+		http.Error(w, "ID in URL and request body do not match", http.StatusBadRequest)
+		return
+	}
+ 
+	query := `UPDATE godbstudents SET first_name = $1, last_name = $2, email = $3, major = $4 WHERE id = $5`
+	result, err := db.Exec(query, student.FirstName, student.LastName, student.Email, student.Major, id)
+	
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Error updating student: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Error checking rows affected: %v", err), http.StatusInternalServerError)
+		return
+	}
+	if rowsAffected == 0 {
+		http.Error(w, "Student not found", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"message": "Student updated successfully"})
+}
+
+func updateStudentAltAsTeacher(w http.ResponseWriter, r *http.Request) {
 	teacherID, ok := r.Context().Value(contextKeyTeacherID).(string)
 	if !ok || teacherID == "" {
 		http.Error(w, "Forbidden: Teacher ID not found in session", http.StatusForbidden)
@@ -411,8 +628,48 @@ func updateStudentAlt(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"message": "Student updated successfully"})
 }
 
+func updateStudentAlt(w http.ResponseWriter, r *http.Request){
+	if (isAnAdmin) {
+		updateStudentAltAsAdmin(w, r)
+	} else {
+		updateStudentAltAsTeacher(w, r)
+	}
+}
+
+
 // deleteStudent handles DELETE requests to delete a student record by ID, with an ownership check.
-func deleteStudent(w http.ResponseWriter, r *http.Request) {
+func deleteStudentAltAsAdmin(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id, err := strconv.Atoi(vars["id"])
+	if err != nil {
+		http.Error(w, "Invalid student ID", http.StatusBadRequest)
+		return
+	}
+	
+	// Ensure the student belongs to the authenticated teacher.
+	query := `DELETE FROM godbstudents WHERE id = $1`
+	result, err := db.Exec(query, id)
+	
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Error deleting student: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Error checking rows affected: %v", err), http.StatusInternalServerError)
+		return
+	}
+	if rowsAffected == 0 {
+		http.Error(w, "Student not found", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"message": "Student deleted successfully"})
+}
+
+func deleteStudentAltAsTeacher(w http.ResponseWriter, r *http.Request) {
 	teacherID, ok := r.Context().Value(contextKeyTeacherID).(string)
 	if !ok || teacherID == "" {
 		http.Error(w, "Forbidden: Teacher ID not found in session", http.StatusForbidden)
@@ -447,4 +704,12 @@ func deleteStudent(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"message": "Student deleted successfully"})
+}
+
+func deleteStudent(w http.ResponseWriter, r *http.Request){
+	if (isAnAdmin) {
+		deleteStudentAltAsAdmin(w, r)
+	} else {
+		deleteStudentAltAsTeacher(w, r)
+	}
 }
