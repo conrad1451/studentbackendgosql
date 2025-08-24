@@ -85,10 +85,6 @@ func main() {
 	// Initialize database connection
 	var err error
 	theChosenDB := listOfDBConnections[3]
-
-
-
-
 	dbConnStr := os.Getenv(theChosenDB)
 	if dbConnStr == "" {
 		log.Fatal("DATABASE_URL environment variable not set.")
