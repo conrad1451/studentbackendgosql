@@ -53,7 +53,7 @@ func main() {
 	theChosenDB := listOfDBConnections[3]
 	dbConnStr := os.Getenv(theChosenDB)
 	if dbConnStr == "" {
-		log.Fatal("DATABASE_URL environment variable not set.")
+		log.Fatal("environment variable for the database not set.")
 	}
 
 	db, err = sql.Open("postgres", dbConnStr)
