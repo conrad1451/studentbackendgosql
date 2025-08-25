@@ -72,6 +72,9 @@ func main() {
 	// Initialize the router
 	router := mux.NewRouter()
 
+	router.HandleFunc("/", helloHandler)
+	router.HandleFunc("/favicon.ico", faviconHandler)
+
 	// Define API routes
 	router.HandleFunc("/godbstudents", createStudent).Methods("POST")
 	router.HandleFunc("/godbstudents/{id}", getStudent).Methods("GET")
@@ -93,6 +96,30 @@ func main() {
 	}
 	fmt.Printf("Server listening on port %s...\n", port)
 	log.Fatal(http.ListenAndServe(":"+port, corsRouter))
+}
+
+// CHQ: Gemini AI generated function
+// helloHandler is the function that will be executed for requests to the "/" route.
+func helloHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html")
+	fmt.Fprint(w, "This is the server for the student records app. It's written in Go (aka GoLang).")
+}
+
+
+// faviconHandler serves the favicon.ico file.
+func faviconHandler(w http.ResponseWriter, r *http.Request) {
+    // Open the favicon file
+    favicon, err := os.ReadFile("./static/calculator.ico")
+    if err != nil {
+        http.NotFound(w, r)
+        return
+    }
+
+    // Set the Content-Type header
+    w.Header().Set("Content-Type", "image/x-icon")
+    
+    // Write the file content to the response
+    w.Write(favicon)
 }
 
 // createStudent handles POST requests to create a new student record.
