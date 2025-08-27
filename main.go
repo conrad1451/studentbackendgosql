@@ -131,6 +131,40 @@ func createStudent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	
+    // 1. Check if the teacher exists in the 'teachers' table.
+    var userID int
+    err = db.QueryRow("SELECT teacher_username FROM teachers WHERE teacher_id = $1", student.TeacherID).Scan(&userID)
+    
+    if err == sql.ErrNoRows {
+        // User does not exist, so create a new user first.
+        insertUserQuery := "INSERT INTO users (teacher_id) VALUES ($1) RETURNING teacher_username"
+        err = db.QueryRow(insertUserQuery, playerCheckpoint.Username).Scan(&userID)
+        if err != nil {
+            http.Error(w, fmt.Sprintf("Error creating user: %v", err), http.StatusInternalServerError)
+            return
+        }
+    } else if err != nil {
+        http.Error(w, fmt.Sprintf("Error checking for existing user: %v", err), http.StatusInternalServerError)
+        return
+    }
+
+	
+    // 2. Now that we have a valid userID, insert the checkpoint data.
+    // The query now inserts into teacher_username and checkpoint_data.
+    query := `INSERT INTO backup_godbstudents (teacher_username, checkpoint_data) VALUES ($1, $2) RETURNING id`
+    
+    var newCheckpointID int
+    err = db.QueryRow(query, userID, playerCheckpoint.CheckpointData).Scan(&newCheckpointID)
+    if err != nil {
+        http.Error(w, fmt.Sprintf("Error creating player checkpoint: %v", err), http.StatusInternalServerError)
+        return
+    }
+
+    // Update the returned struct with the new ID.
+    playerCheckpoint.ID = newCheckpointID
+
+
 	query := `INSERT INTO godbstudents (first_name, last_name, email, major, teacher_id) VALUES ($1, $2, $3, $4, $5) RETURNING id`
 	err = db.QueryRow(query, student.FirstName, student.LastName, student.Email, student.Major, student.TeacherID).Scan(&student.ID)
 	if err != nil {
@@ -153,6 +187,41 @@ func getStudent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var student Student
+	var userName string // New variable to hold the user_name from the join
+
+	query := `
+		SELECT 
+			g.id, 
+			u.user_name, 
+			g.checkpoint_data, 
+			g.created_at, 
+			g.last_edited_at, 
+			g.player_id 
+		FROM 
+			gameplay_checkpoints g 
+		JOIN 
+			users u ON g.user_id = u.user_id 
+		WHERE 
+			g.id = $1`
+
+	row := db.QueryRow(query, id)
+ 	err = row.Scan(
+		&myCheckpoint.ID,
+		&userName, // Scan into a separate variable
+		&myCheckpoint.CheckpointData,
+		&myCheckpoint.CreatedAt,
+		&myCheckpoint.LastEditedAt,
+		&myCheckpoint.PlayerID,
+	)
+
+	if err == sql.ErrNoRows {
+		http.Error(w, "Checkpoint not found", http.StatusNotFound)
+		return
+	} else if err != nil {
+		http.Error(w, fmt.Sprintf("Error retrieving myCheckpoint: %v", err), http.StatusInternalServerError)
+		return
+	}
+ 
 	query := `SELECT id, first_name, last_name, email, major, teacher_id FROM godbstudents WHERE id = $1`
 	row := db.QueryRow(query, id)
 
@@ -164,6 +233,10 @@ func getStudent(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("Error retrieving student: %v", err), http.StatusInternalServerError)
 		return
 	}
+
+	
+	// Update the Checkpoint struct with the user_name from the join
+	// student. = userName
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(student)
@@ -293,3 +366,6 @@ func deleteStudent(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"message": "Student deleted successfully"})
 }
+ng{"message": "Student deleted successfully"})
+er().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"message": "Student deleted successfully"})
