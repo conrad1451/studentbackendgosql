@@ -29,22 +29,6 @@ type Student struct {
 
 var db *sql.DB
 
-// [1]
-func databaseChosen(chosenDB string) string {
-	switch chosenDB {
-	case "NEON_STUDENT_RECORDS_DB":
-		return "Neon DB student records DB chosen"
-	case "PROJECT2_DB":
-		return "Neon DB project2 DB chosen"
-	case "GOOGLE_CLOUD_SQL":
-		return "Google Cloud SQL DB chosen"
-	case "GOOGLE_VM_HOSTED_SQL":
-		return "Google VM hosted DB chosen"
-	default:
-		return "some DB chosen"
-	}
-}
-
 var listOfDBConnections = []string{"NEON_STUDENT_RECORDS_DB", "PROJECT2_DB", "GOOGLE_CLOUD_SQL", "GOOGLE_VM_HOSTED_SQL"}
 
 func main() {
@@ -67,7 +51,6 @@ func main() {
 		log.Fatalf("Error connecting to the database: %v", err)
 	}
 	fmt.Println("Successfully connected to the database!")
-	fmt.Println(databaseChosen(theChosenDB))
 
 	// Initialize the router
 	router := mux.NewRouter()
@@ -98,28 +81,26 @@ func main() {
 	log.Fatal(http.ListenAndServe(":"+port, corsRouter))
 }
 
-// CHQ: Gemini AI generated function
 // helloHandler is the function that will be executed for requests to the "/" route.
 func helloHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html")
 	fmt.Fprint(w, "This is the server for the student records app. It's written in Go (aka GoLang).")
 }
 
-
 // faviconHandler serves the favicon.ico file.
 func faviconHandler(w http.ResponseWriter, r *http.Request) {
-    // Open the favicon file
-    favicon, err := os.ReadFile("./static/calculator.ico")
-    if err != nil {
-        http.NotFound(w, r)
-        return
-    }
+	// Open the favicon file
+	favicon, err := os.ReadFile("./static/calculator.ico")
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
 
-    // Set the Content-Type header
-    w.Header().Set("Content-Type", "image/x-icon")
-    
-    // Write the file content to the response
-    w.Write(favicon)
+	// Set the Content-Type header
+	w.Header().Set("Content-Type", "image/x-icon")
+
+	// Write the file content to the response
+	w.Write(favicon)
 }
 
 // createStudent handles POST requests to create a new student record.
@@ -130,40 +111,6 @@ func createStudent(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-
-	
-    // 1. Check if the teacher exists in the 'teachers' table.
-    var userID int
-    err = db.QueryRow("SELECT teacher_username FROM teachers WHERE teacher_id = $1", student.TeacherID).Scan(&userID)
-    
-    if err == sql.ErrNoRows {
-        // User does not exist, so create a new user first.
-        insertUserQuery := "INSERT INTO users (teacher_id) VALUES ($1) RETURNING teacher_username"
-        err = db.QueryRow(insertUserQuery, playerCheckpoint.Username).Scan(&userID)
-        if err != nil {
-            http.Error(w, fmt.Sprintf("Error creating user: %v", err), http.StatusInternalServerError)
-            return
-        }
-    } else if err != nil {
-        http.Error(w, fmt.Sprintf("Error checking for existing user: %v", err), http.StatusInternalServerError)
-        return
-    }
-
-	
-    // 2. Now that we have a valid userID, insert the checkpoint data.
-    // The query now inserts into teacher_username and checkpoint_data.
-    query := `INSERT INTO backup_godbstudents (teacher_username, checkpoint_data) VALUES ($1, $2) RETURNING id`
-    
-    var newCheckpointID int
-    err = db.QueryRow(query, userID, playerCheckpoint.CheckpointData).Scan(&newCheckpointID)
-    if err != nil {
-        http.Error(w, fmt.Sprintf("Error creating player checkpoint: %v", err), http.StatusInternalServerError)
-        return
-    }
-
-    // Update the returned struct with the new ID.
-    playerCheckpoint.ID = newCheckpointID
-
 
 	query := `INSERT INTO godbstudents (first_name, last_name, email, major, teacher_id) VALUES ($1, $2, $3, $4, $5) RETURNING id`
 	err = db.QueryRow(query, student.FirstName, student.LastName, student.Email, student.Major, student.TeacherID).Scan(&student.ID)
@@ -187,41 +134,6 @@ func getStudent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var student Student
-	var userName string // New variable to hold the user_name from the join
-
-	query := `
-		SELECT 
-			g.id, 
-			u.user_name, 
-			g.checkpoint_data, 
-			g.created_at, 
-			g.last_edited_at, 
-			g.player_id 
-		FROM 
-			gameplay_checkpoints g 
-		JOIN 
-			users u ON g.user_id = u.user_id 
-		WHERE 
-			g.id = $1`
-
-	row := db.QueryRow(query, id)
- 	err = row.Scan(
-		&myCheckpoint.ID,
-		&userName, // Scan into a separate variable
-		&myCheckpoint.CheckpointData,
-		&myCheckpoint.CreatedAt,
-		&myCheckpoint.LastEditedAt,
-		&myCheckpoint.PlayerID,
-	)
-
-	if err == sql.ErrNoRows {
-		http.Error(w, "Checkpoint not found", http.StatusNotFound)
-		return
-	} else if err != nil {
-		http.Error(w, fmt.Sprintf("Error retrieving myCheckpoint: %v", err), http.StatusInternalServerError)
-		return
-	}
- 
 	query := `SELECT id, first_name, last_name, email, major, teacher_id FROM godbstudents WHERE id = $1`
 	row := db.QueryRow(query, id)
 
@@ -234,10 +146,6 @@ func getStudent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	
-	// Update the Checkpoint struct with the user_name from the join
-	// student. = userName
-
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(student)
 }
@@ -246,7 +154,7 @@ func getStudent(w http.ResponseWriter, r *http.Request) {
 // It now supports an optional `teacherID` query parameter to filter results.
 func getAllgodbstudents(w http.ResponseWriter, r *http.Request) {
 	var godbstudents []Student
-	
+
 	// Get query parameters from the request
 	queryParams := r.URL.Query()
 	teacherIDStr := queryParams.Get("teacherID")
@@ -256,13 +164,8 @@ func getAllgodbstudents(w http.ResponseWriter, r *http.Request) {
 
 	// If a teacherID is provided, filter the results
 	if teacherIDStr != "" {
-		teacherID, err := strconv.Atoi(teacherIDStr)
-		if err != nil {
-			http.Error(w, "Invalid teacherID query parameter", http.StatusBadRequest)
-			return
-		}
 		query := `SELECT id, first_name, last_name, email, major, teacher_id FROM godbstudents WHERE teacher_id = $1 ORDER BY id`
-		rows, err = db.Query(query, teacherID)
+		rows, err = db.Query(query, teacherIDStr)
 	} else {
 		// Otherwise, retrieve all students
 		query := `SELECT id, first_name, last_name, email, major, teacher_id FROM godbstudents ORDER BY id`
@@ -366,6 +269,3 @@ func deleteStudent(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"message": "Student deleted successfully"})
 }
-ng{"message": "Student deleted successfully"})
-er().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"message": "Student deleted successfully"})

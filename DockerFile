@@ -1,0 +1,34 @@
+# CHQ: Gemini AI generated this
+
+# Use a minimal GoLang base image for your application
+FROM golang:1.20-alpine AS builder
+
+# Set the working directory inside the container
+WORKDIR /app
+
+# Copy go.mod and go.sum for dependency management
+COPY go.mod go.sum ./
+
+# Download and verify dependencies
+RUN go mod download && go mod verify
+
+# Copy your GoLang application source code
+COPY . .
+
+# Build your GoLang application into a binary
+RUN go build -o /app/server .
+
+# Use a smaller base image for the final container for reduced size
+FROM alpine:latest
+
+# Set the working directory
+WORKDIR /app
+
+# Copy the built binary from the builder stage
+COPY --from=builder /app/server .
+
+# Expose the port your GoLang server listens on
+EXPOSE 8080
+
+# Define the command to run your server when the container starts
+CMD ["./server"]
