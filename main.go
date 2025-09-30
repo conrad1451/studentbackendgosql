@@ -37,6 +37,14 @@ type Student struct {
 	TeacherID string `json:"teacher_id"`
 }
 
+// Teacher represents a teacher record in the database.
+type Teacher struct {
+	TeacherID       string `json:"teacher_id"`
+	FirstName       string `json:"first_name"`
+	LastName        string `json:"last_name"`
+	TeacherUsername string `json:"teacher_username"`
+}
+
 var db *sql.DB
 var descopeClient *client.DescopeClient
 
@@ -85,6 +93,63 @@ func faviconHandler(w http.ResponseWriter, r *http.Request) {
     w.Write(favicon)
 }
 
+// CHQ: Gemini AI created endpoint
+// registerTeacher handles POST requests to register a new user from a Descope token
+// into the 'real_teachers' table.
+func registerTeacher(w http.ResponseWriter, r *http.Request) {
+	// The Descope middleware should ensure the teacherID is in the context
+	teacherID, ok := r.Context().Value(contextKeyTeacherID).(string)
+	if !ok || teacherID == "" {
+		http.Error(w, "Forbidden: Teacher ID not found in session", http.StatusForbidden)
+		return
+	}
+
+	// We expect the request body to contain the teacher's profile info
+	var teacher Teacher
+	err := json.NewDecoder(r.Body).Decode(&teacher)
+	if err != nil {
+		// Log the error but continue, as we'll use token data if body is empty/malformed
+		log.Printf("Warning: Failed to decode teacher profile from body: %v. Relying on token data.", err)
+	}
+
+	// For a more robust solution, we can fetch the token's claims here to ensure we have the data
+	// Note: We'll use the r.Context().Value(contextKeyUserID) if the Descope token struct was stored there.
+	// Since your middleware only stores the ID, we'll try to use the body data or placeholders.
+
+	// In a real application, you would pass the full token object or the necessary claims
+	// through the context, or expect the client to send a minimal payload with the required fields.
+	// For this example, we assume the front end sends the teacher data (Name/Username).
+	if teacher.FirstName == "" || teacher.LastName == "" || teacher.TeacherUsername == "" {
+		// This is a simplified fallback/error handling. A better solution would rely on
+		// custom claims in the token or a more complete client-side payload.
+		http.Error(w, "Bad Request: Missing first_name, last_name, or teacher_username in body.", http.StatusBadRequest)
+		return
+	}
+
+	// Set the ID from the authenticated token, overriding any ID in the request body
+	teacher.TeacherID = teacherID
+
+	// This PostgreSQL query uses ON CONFLICT DO NOTHING to ensure idempotent operations.
+	// If the teacher_id already exists, the row is not inserted, avoiding a primary key error.
+	query := `
+		INSERT INTO real_teachers (teacher_id, first_name, last_name, teacher_username)
+		VALUES ($1, $2, $3, $4)
+		ON CONFLICT (teacher_id) DO NOTHING
+	`
+	_, err = db.Exec(query, teacher.TeacherID, teacher.FirstName, teacher.LastName, teacher.TeacherUsername)
+
+	if err != nil {
+		// Log the error for the server but return a generic message to the client
+		log.Printf("Error inserting teacher %s into DB: %v", teacher.TeacherID, err)
+		http.Error(w, "Internal Server Error: Could not register teacher.", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"message": "Teacher registration processed. Existing users ignored."})
+}
+
 func main() {
 	// Initialize database connection
 	var err error
@@ -107,6 +172,7 @@ func main() {
 	fmt.Println("Successfully connected to the database!")
 	fmt.Println(databaseChosen(theChosenDB))
 
+	// projectID := os.Getenv("DESCOPE_PROJECT_PERSONAL_MELLOW_NAVY")
 	projectID := os.Getenv("DESCOPE_PROJECT_ID")
 	if projectID == "" {
 		log.Fatal("DESCOPE_PROJECT_ID environment variable not set.")
@@ -127,6 +193,9 @@ func main() {
 
     protectedRoutes := router.PathPrefix("/api").Subrouter()
     protectedRoutes.Use(sessionValidationMiddleware) // Apply middleware to all routes in this subrouter
+
+	protectedRoutes.HandleFunc("/registerteacher", registerTeacher).Methods("POST")
+
     protectedRoutes.HandleFunc("/godbstudents", createStudent).Methods("POST")
     protectedRoutes.HandleFunc("/godbstudents/{id}", getStudent).Methods("GET")
     protectedRoutes.HandleFunc("/godbstudents", getAllgodbstudents).Methods("GET")
