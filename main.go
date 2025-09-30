@@ -45,6 +45,10 @@ type Teacher struct {
 	TeacherUsername string `json:"teacher_username"`
 }
 
+type TeacherAlt struct {
+	TeacherID       string `json:"teacher_id"` 
+}
+
 var db *sql.DB
 var descopeClient *client.DescopeClient
 
@@ -100,12 +104,12 @@ func registerTeacher(w http.ResponseWriter, r *http.Request) {
 	// The Descope middleware should ensure the teacherID is in the context
 	teacherID, ok := r.Context().Value(contextKeyTeacherID).(string)
 	if !ok || teacherID == "" {
-		http.Error(w, "Forbidden: Teacher ID not found in session", http.StatusForbidden)
+		http.Error(w, "Forbidden: TeacherAlt ID not found in session", http.StatusForbidden)
 		return
 	}
 
 	// We expect the request body to contain the teacher's profile info
-	var teacher Teacher
+	var teacher TeacherAlt
 	err := json.NewDecoder(r.Body).Decode(&teacher)
 	if err != nil {
 		// Log the error but continue, as we'll use token data if body is empty/malformed
@@ -119,24 +123,30 @@ func registerTeacher(w http.ResponseWriter, r *http.Request) {
 	// In a real application, you would pass the full token object or the necessary claims
 	// through the context, or expect the client to send a minimal payload with the required fields.
 	// For this example, we assume the front end sends the teacher data (Name/Username).
-	if teacher.FirstName == "" || teacher.LastName == "" || teacher.TeacherUsername == "" {
-		// This is a simplified fallback/error handling. A better solution would rely on
-		// custom claims in the token or a more complete client-side payload.
-		http.Error(w, "Bad Request: Missing first_name, last_name, or teacher_username in body.", http.StatusBadRequest)
-		return
-	}
+	// if teacher.FirstName == "" || teacher.LastName == "" || teacher.TeacherUsername == "" {
+	// 	// This is a simplified fallback/error handling. A better solution would rely on
+	// 	// custom claims in the token or a more complete client-side payload.
+	// 	http.Error(w, "Bad Request: Missing first_name, last_name, or teacher_username in body.", http.StatusBadRequest)
+	// 	return
+	// }
 
 	// Set the ID from the authenticated token, overriding any ID in the request body
 	teacher.TeacherID = teacherID
 
 	// This PostgreSQL query uses ON CONFLICT DO NOTHING to ensure idempotent operations.
 	// If the teacher_id already exists, the row is not inserted, avoiding a primary key error.
+	// query := `
+	// 	INSERT INTO the_real_teachers (teacher_id)
+	// 	VALUES ($1)
+	// 	ON CONFLICT (teacher_id) DO NOTHING
+	// `
+
 	query := `
-		INSERT INTO real_teachers (teacher_id, first_name, last_name, teacher_username)
-		VALUES ($1, $2, $3, $4)
-		ON CONFLICT (teacher_id) DO NOTHING
+	INSERT INTO the_real_teachers (teacher_id)
+	VALUES ($1)	
 	`
-	_, err = db.Exec(query, teacher.TeacherID, teacher.FirstName, teacher.LastName, teacher.TeacherUsername)
+	// _, err = db.Exec(query, teacher.TeacherID, teacher.FirstName, teacher.LastName, teacher.TeacherUsername)
+	_, err = db.Exec(query, teacher.TeacherID )
 
 	if err != nil {
 		// Log the error for the server but return a generic message to the client
@@ -147,7 +157,7 @@ func registerTeacher(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"message": "Teacher registration processed. Existing users ignored."})
+	json.NewEncoder(w).Encode(map[string]string{"message": "TeacherAlt registration processed. Existing users ignored."})
 }
 
 func main() {
@@ -337,7 +347,7 @@ func createStudentAsAdmin(w http.ResponseWriter, r *http.Request) {
 func createStudentAsTeacher(w http.ResponseWriter, r *http.Request) {
 	teacherID, ok := r.Context().Value(contextKeyTeacherID).(string)
 	if !ok || teacherID == "" {
-		http.Error(w, "Forbidden: Teacher ID not found in session", http.StatusForbidden)
+		http.Error(w, "Forbidden: TeacherAlt ID not found in session", http.StatusForbidden)
 		return
 	}
 
@@ -411,7 +421,7 @@ func getStudentAsAdmin(w http.ResponseWriter, r *http.Request) {
 func getStudentAsTeacher(w http.ResponseWriter, r *http.Request) {
 	teacherID, ok := r.Context().Value(contextKeyTeacherID).(string)
 	if !ok || teacherID == "" {
-		http.Error(w, "Forbidden: Teacher ID not found in session", http.StatusForbidden)
+		http.Error(w, "Forbidden: TeacherAlt ID not found in session", http.StatusForbidden)
 		return
 	}
 	
@@ -493,7 +503,7 @@ func getAllgodbstudentsAsAdmin(w http.ResponseWriter) {
 func getAllgodbstudentsAsTeacher(w http.ResponseWriter, r *http.Request) {
 	teacherID, ok := r.Context().Value(contextKeyTeacherID).(string)
 	if !ok || teacherID == "" {
-		http.Error(w, "Forbidden: Teacher ID not found in session", http.StatusForbidden)
+		http.Error(w, "Forbidden: TeacherAlt ID not found in session", http.StatusForbidden)
 		return
 	}
 
@@ -592,7 +602,7 @@ func updateStudentAsAdmin(w http.ResponseWriter, r *http.Request) {
 func updateStudentAsTeacher(w http.ResponseWriter, r *http.Request) {
 	teacherID, ok := r.Context().Value(contextKeyTeacherID).(string)
 	if !ok || teacherID == "" {
-		http.Error(w, "Forbidden: Teacher ID not found in session", http.StatusForbidden)
+		http.Error(w, "Forbidden: TeacherAlt ID not found in session", http.StatusForbidden)
 		return
 	}
 
@@ -705,7 +715,7 @@ func updateStudentAltAsAdmin(w http.ResponseWriter, r *http.Request) {
 func updateStudentAltAsTeacher(w http.ResponseWriter, r *http.Request) {
 	teacherID, ok := r.Context().Value(contextKeyTeacherID).(string)
 	if !ok || teacherID == "" {
-		http.Error(w, "Forbidden: Teacher ID not found in session", http.StatusForbidden)
+		http.Error(w, "Forbidden: TeacherAlt ID not found in session", http.StatusForbidden)
 		return
 	}
 
@@ -807,7 +817,7 @@ func deleteStudentAltAsAdmin(w http.ResponseWriter, r *http.Request) {
 func deleteStudentAltAsTeacher(w http.ResponseWriter, r *http.Request) {
 	teacherID, ok := r.Context().Value(contextKeyTeacherID).(string)
 	if !ok || teacherID == "" {
-		http.Error(w, "Forbidden: Teacher ID not found in session", http.StatusForbidden)
+		http.Error(w, "Forbidden: TeacherAlt ID not found in session", http.StatusForbidden)
 		return
 	}
 	
