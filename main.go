@@ -144,6 +144,7 @@ func registerTeacher(w http.ResponseWriter, r *http.Request) {
 	query := `
 	INSERT INTO the_real_teachers (teacher_id)
 	VALUES ($1)	
+	ON CONFLICT (teacher_id) DO NOTHING
 	`
 	// _, err = db.Exec(query, teacher.TeacherID, teacher.FirstName, teacher.LastName, teacher.TeacherUsername)
 	_, err = db.Exec(query, teacher.TeacherID )
