@@ -40,9 +40,12 @@ type Student struct {
 var db *sql.DB
 var descopeClient *client.DescopeClient
 
-var isAnAdmin bool
+// var isAnAdmin bool
 // Define a custom key type to avoid collisions
 type contextKey string
+
+// var isAnAdmin bool
+const contextKeyIsAdmin contextKey = "isAdmin"
 
 const contextKeyUserID contextKey = "userID"
 const contextKeyTeacherID contextKey = "teacherID" // A key for the teacher ID
@@ -195,11 +198,16 @@ func sessionValidationMiddleware(next http.Handler) http.Handler {
 			http.Error(w, "Unauthorized: Invalid session token", http.StatusUnauthorized)
 			return
 		}
-		if descopeClient.Auth.ValidateRoles(context.Background(), token, []string{"School Administrator"}) {
-			isAnAdmin = true
-		} else {
-			isAnAdmin = false
-		}
+
+
+		// CHQ: GEmini AI removed global flag check
+		// if descopeClient.Auth.ValidateRoles(context.Background(), token, []string{"School Administrator"}) {
+		// 	isAnAdmin = true
+		// } else {
+		// 	isAnAdmin = false
+		// }
+        isAdmin := descopeClient.Auth.ValidateRoles(context.Background(), token, []string{"School Administrator"})
+
 
 		userID := token.ID
 		// userRole := token.GetTenants()
@@ -214,11 +222,22 @@ func sessionValidationMiddleware(next http.Handler) http.Handler {
 		// In a real-world app, you would extract this from custom claims in the token.
 		teacherID := userID
 
-		// Store the user ID and teacher ID in the request's context
-		ctxWithUserID := context.WithValue(ctx, contextKeyUserID, userID)
-		ctxWithIDs := context.WithValue(ctxWithUserID, contextKeyTeacherID, teacherID)
+				
+        // Store the user ID, teacher ID, and admin status in the request's context
+        ctxWithUserID := context.WithValue(ctx, contextKeyUserID, userID)
+        ctxWithIDs := context.WithValue(ctxWithUserID, contextKeyTeacherID, teacherID)
+        
+        // ✅ NEW: Add admin status to context
+        ctxWithAdminStatus := context.WithValue(ctxWithIDs, contextKeyIsAdmin, isAdmin)
+        
+        // Use the final context
+        next.ServeHTTP(w, r.WithContext(ctxWithAdminStatus))
+
+		// // Store the user ID and teacher ID in the request's context
+		// ctxWithUserID := context.WithValue(ctx, contextKeyUserID, userID)
+		// ctxWithIDs := context.WithValue(ctxWithUserID, contextKeyTeacherID, teacherID)
 		
-		next.ServeHTTP(w, r.WithContext(ctxWithIDs))
+		// next.ServeHTTP(w, r.WithContext(ctxWithIDs))
 	})
 }
 
@@ -275,7 +294,16 @@ func createStudentAsTeacher(w http.ResponseWriter, r *http.Request) {
 }
 
 func createStudent(w http.ResponseWriter, r *http.Request){
-	if (isAnAdmin) {
+
+	// Retrieve isAdmin from context
+    isAdmin, ok := r.Context().Value(contextKeyIsAdmin).(bool)
+    if !ok {
+        // Fallback for safety, though middleware should ensure it's set
+        http.Error(w, "Forbidden: Role not determined", http.StatusForbidden)
+        return
+    }
+
+	if (isAdmin) {
 		createStudentAsAdmin(w, r)
 	} else {
 		createStudentAsTeacher(w, r)
@@ -342,7 +370,16 @@ func getStudentAsTeacher(w http.ResponseWriter, r *http.Request) {
 }
 
 func getStudent(w http.ResponseWriter, r *http.Request){
-	if (isAnAdmin) {
+	
+	// Retrieve isAdmin from context
+    isAdmin, ok := r.Context().Value(contextKeyIsAdmin).(bool)
+    if !ok {
+        // Fallback for safety, though middleware should ensure it's set
+        http.Error(w, "Forbidden: Role not determined", http.StatusForbidden)
+        return
+    }
+
+	if (isAdmin) {
 		getStudentAsAdmin(w, r)
 	} else {
 		getStudentAsTeacher(w, r)
@@ -418,7 +455,15 @@ func getAllgodbstudentsAsTeacher(w http.ResponseWriter, r *http.Request) {
 }
 
 func getAllgodbstudents(w http.ResponseWriter, r *http.Request){
-	if (isAnAdmin) {
+	// Retrieve isAdmin from context
+    isAdmin, ok := r.Context().Value(contextKeyIsAdmin).(bool)
+    if !ok {
+        // Fallback for safety, though middleware should ensure it's set
+        http.Error(w, "Forbidden: Role not determined", http.StatusForbidden)
+        return
+    }
+
+	if (isAdmin) {
 		getAllgodbstudentsAsAdmin(w)
 	} else {
 		getAllgodbstudentsAsTeacher(w, r)
@@ -522,7 +567,15 @@ func updateStudentAsTeacher(w http.ResponseWriter, r *http.Request) {
 }
 
 func updateStudent(w http.ResponseWriter, r *http.Request){
-	if (isAnAdmin) {
+	// Retrieve isAdmin from context
+    isAdmin, ok := r.Context().Value(contextKeyIsAdmin).(bool)
+    if !ok {
+        // Fallback for safety, though middleware should ensure it's set
+        http.Error(w, "Forbidden: Role not determined", http.StatusForbidden)
+        return
+    }
+
+	if (isAdmin) {
 		updateStudentAsAdmin(w, r)
 	} else {
 		updateStudentAsTeacher(w, r)
@@ -625,7 +678,15 @@ func updateStudentAltAsTeacher(w http.ResponseWriter, r *http.Request) {
 }
 
 func updateStudentAlt(w http.ResponseWriter, r *http.Request){
-	if (isAnAdmin) {
+	// Retrieve isAdmin from context
+    isAdmin, ok := r.Context().Value(contextKeyIsAdmin).(bool)
+    if !ok {
+        // Fallback for safety, though middleware should ensure it's set
+        http.Error(w, "Forbidden: Role not determined", http.StatusForbidden)
+        return
+    }
+
+	if (isAdmin) {
 		updateStudentAltAsAdmin(w, r)
 	} else {
 		updateStudentAltAsTeacher(w, r)
@@ -703,7 +764,15 @@ func deleteStudentAltAsTeacher(w http.ResponseWriter, r *http.Request) {
 }
 
 func deleteStudent(w http.ResponseWriter, r *http.Request){
-	if (isAnAdmin) {
+	// Retrieve isAdmin from context
+    isAdmin, ok := r.Context().Value(contextKeyIsAdmin).(bool)
+    if !ok {
+        // Fallback for safety, though middleware should ensure it's set
+        http.Error(w, "Forbidden: Role not determined", http.StatusForbidden)
+        return
+    }
+
+	if (isAdmin) {
 		deleteStudentAltAsAdmin(w, r)
 	} else {
 		deleteStudentAltAsTeacher(w, r)
