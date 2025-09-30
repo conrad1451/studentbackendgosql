@@ -44,6 +44,7 @@ var descopeClient *client.DescopeClient
 // Define a custom key type to avoid collisions
 type contextKey string
 
+// CHQ: Gemini AI changed global flag variable into context key
 // var isAnAdmin bool
 const contextKeyIsAdmin contextKey = "isAdmin"
 
@@ -227,7 +228,7 @@ func sessionValidationMiddleware(next http.Handler) http.Handler {
         ctxWithUserID := context.WithValue(ctx, contextKeyUserID, userID)
         ctxWithIDs := context.WithValue(ctxWithUserID, contextKeyTeacherID, teacherID)
         
-        // ✅ NEW: Add admin status to context
+		// CHQ: Gemini AI added admin status to context
         ctxWithAdminStatus := context.WithValue(ctxWithIDs, contextKeyIsAdmin, isAdmin)
         
         // Use the final context
@@ -295,6 +296,7 @@ func createStudentAsTeacher(w http.ResponseWriter, r *http.Request) {
 
 func createStudent(w http.ResponseWriter, r *http.Request){
 
+	// CHQ: Gemini AI changed fetching global vatiable to retrieving variable from context
 	// Retrieve isAdmin from context
     isAdmin, ok := r.Context().Value(contextKeyIsAdmin).(bool)
     if !ok {
@@ -371,6 +373,7 @@ func getStudentAsTeacher(w http.ResponseWriter, r *http.Request) {
 
 func getStudent(w http.ResponseWriter, r *http.Request){
 	
+	// CHQ: Gemini AI changed fetching global vatiable to retrieving variable from context
 	// Retrieve isAdmin from context
     isAdmin, ok := r.Context().Value(contextKeyIsAdmin).(bool)
     if !ok {
@@ -455,6 +458,8 @@ func getAllgodbstudentsAsTeacher(w http.ResponseWriter, r *http.Request) {
 }
 
 func getAllgodbstudents(w http.ResponseWriter, r *http.Request){
+	// CHQ: Gemini AI changed fetching global vatiable to retrieving variable from context
+
 	// Retrieve isAdmin from context
     isAdmin, ok := r.Context().Value(contextKeyIsAdmin).(bool)
     if !ok {
@@ -567,6 +572,8 @@ func updateStudentAsTeacher(w http.ResponseWriter, r *http.Request) {
 }
 
 func updateStudent(w http.ResponseWriter, r *http.Request){
+	// CHQ: Gemini AI changed fetching global vatiable to retrieving variable from context
+
 	// Retrieve isAdmin from context
     isAdmin, ok := r.Context().Value(contextKeyIsAdmin).(bool)
     if !ok {
@@ -678,6 +685,8 @@ func updateStudentAltAsTeacher(w http.ResponseWriter, r *http.Request) {
 }
 
 func updateStudentAlt(w http.ResponseWriter, r *http.Request){
+	// CHQ: Gemini AI changed fetching global vatiable to retrieving variable from context
+
 	// Retrieve isAdmin from context
     isAdmin, ok := r.Context().Value(contextKeyIsAdmin).(bool)
     if !ok {
@@ -764,6 +773,8 @@ func deleteStudentAltAsTeacher(w http.ResponseWriter, r *http.Request) {
 }
 
 func deleteStudent(w http.ResponseWriter, r *http.Request){
+	// CHQ: Gemini AI changed fetching global vatiable to retrieving variable from context
+
 	// Retrieve isAdmin from context
     isAdmin, ok := r.Context().Value(contextKeyIsAdmin).(bool)
     if !ok {
