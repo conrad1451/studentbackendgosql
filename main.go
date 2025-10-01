@@ -127,6 +127,12 @@ func main() {
 
     protectedRoutes := router.PathPrefix("/api").Subrouter()
     protectedRoutes.Use(sessionValidationMiddleware) // Apply middleware to all routes in this subrouter
+<<<<<<< Updated upstream
+=======
+
+	protectedRoutes.HandleFunc("/godbstudents/registerteacher", registerTeacher).Methods("POST")
+
+>>>>>>> Stashed changes
     protectedRoutes.HandleFunc("/godbstudents", createStudent).Methods("POST")
     protectedRoutes.HandleFunc("/godbstudents/{id}", getStudent).Methods("GET")
     protectedRoutes.HandleFunc("/godbstudents", getAllgodbstudents).Methods("GET")
