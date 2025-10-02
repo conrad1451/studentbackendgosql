@@ -105,9 +105,11 @@ func registerTeacher(w http.ResponseWriter, r *http.Request) {
     `
     
     // 3. Execute the Query
+	// If this fails, the internal server error (500) is triggered.
     _, err := db.Exec(query, teacherID)
 
     if err != nil {
+		// CHECK YOUR SERVER LOGS HERE for the full database error message!
         log.Printf("Error inserting teacher %s into DB: %v", teacherID, err)
         http.Error(w, "Internal Server Error: Could not register teacher.", http.StatusInternalServerError)
         return
@@ -118,6 +120,28 @@ func registerTeacher(w http.ResponseWriter, r *http.Request) {
     w.WriteHeader(http.StatusOK)
     json.NewEncoder(w).Encode(map[string]string{"message": "Teacher registration processed. Existing users ignored."})
 }
+
+// CHQ: Gemini AI added new function to encapsulate the database insertion logic.
+// This is used by the middleware for automatic registration.
+func insertTeacherIntoDB(ctx context.Context, teacherID string) {
+    query := `
+        INSERT INTO the_real_teachers (teacher_id)
+        VALUES ($1)
+        ON CONFLICT (teacher_id) DO NOTHING
+    `
+    // Use context for database operation, though for a simple insert, context.Background() is often fine.
+    // Using db.Exec() without context here for simplicity, but in a production environment,
+    // consider using db.ExecContext(ctx, query, teacherID) for better cancellation/timeout handling.
+    _, err := db.Exec(query, teacherID)
+    if err != nil {
+        // IMPORTANT: Use log.Printf, not http.Error, as we are in middleware.
+        // The middleware should not fail the request just because the background
+        // operation failed, unless the database error is critical.
+        log.Printf("AUTOMATIC REGISTRATION FAILED for teacher ID %s: %v", teacherID, err)
+    } else {
+        log.Printf("AUTOMATIC REGISTRATION SUCCESS: Teacher ID %s ensured in the_real_teachers table.", teacherID)
+    }
+}	
 
 func main() {
 	// Initialize database connection
@@ -220,63 +244,47 @@ func helloHandler(w http.ResponseWriter, r *http.Request) {
 // CHQ: Gemini AI created function
 // sessionValidationMiddleware is a middleware to validate the Descope session token.
 func sessionValidationMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		sessionToken := r.Header.Get("Authorization")
-		if sessionToken == "" {
-			http.Error(w, "Unauthorized: No session token provided", http.StatusUnauthorized)
-			return
-		}
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        sessionToken := r.Header.Get("Authorization")
+        if sessionToken == "" {
+            http.Error(w, "Unauthorized: No session token provided", http.StatusUnauthorized)
+            return
+        }
 
-		sessionToken = strings.TrimPrefix(sessionToken, "Bearer ")
+        sessionToken = strings.TrimPrefix(sessionToken, "Bearer ")
 
-		ctx := r.Context()
-		authorized, token, err := descopeClient.Auth.ValidateSessionWithToken(ctx, sessionToken)
-		if err != nil || !authorized {
-			log.Printf("Session validation failed: %v", err)
-			http.Error(w, "Unauthorized: Invalid session token", http.StatusUnauthorized)
-			return
-		}
+        ctx := r.Context()
+        authorized, token, err := descopeClient.Auth.ValidateSessionWithToken(ctx, sessionToken)
+        if err != nil || !authorized {
+            log.Printf("Session validation failed: %v", err)
+            http.Error(w, "Unauthorized: Invalid session token", http.StatusUnauthorized)
+            return
+        }
 
-
-		// CHQ: GEmini AI removed global flag check
-		// if descopeClient.Auth.ValidateRoles(context.Background(), token, []string{"School Administrator"}) {
-		// 	isAnAdmin = true
-		// } else {
-		// 	isAnAdmin = false
-		// }
         isAdmin := descopeClient.Auth.ValidateRoles(context.Background(), token, []string{"School Administrator"})
+        userID := token.ID
+        if userID == "" {
+            http.Error(w, "Unauthorized: User ID not found in token", http.StatusUnauthorized)
+            return
+        }
+        
+        // For this example, we assume the teacher ID is the same as the user ID.
+        teacherID := userID
 
-
-		userID := token.ID
-		// userRole := token.GetTenants()
-		// userRole := token.GetTenantValue()
-		// userRole := token.GetTenants()
-		if userID == "" {
-			http.Error(w, "Unauthorized: User ID not found in token", http.StatusUnauthorized)
-			return
-		}
-		
-		// For this example, we assume the teacher ID is the same as the user ID.
-		// In a real-world app, you would extract this from custom claims in the token.
-		teacherID := userID
-
-				
+        // --- NEW CODE FOR AUTOMATIC REGISTRATION ---
+        // This is where a successfully authenticated user is automatically added to the teachers table.
+        // It's called after validation but before processing the request, ensuring the teacher ID is in the DB.
+        insertTeacherIntoDB(ctx, teacherID)
+        // ------------------------------------------
+            
         // Store the user ID, teacher ID, and admin status in the request's context
         ctxWithUserID := context.WithValue(ctx, contextKeyUserID, userID)
         ctxWithIDs := context.WithValue(ctxWithUserID, contextKeyTeacherID, teacherID)
-        
-		// CHQ: Gemini AI added admin status to context
         ctxWithAdminStatus := context.WithValue(ctxWithIDs, contextKeyIsAdmin, isAdmin)
         
         // Use the final context
         next.ServeHTTP(w, r.WithContext(ctxWithAdminStatus))
-
-		// // Store the user ID and teacher ID in the request's context
-		// ctxWithUserID := context.WithValue(ctx, contextKeyUserID, userID)
-		// ctxWithIDs := context.WithValue(ctxWithUserID, contextKeyTeacherID, teacherID)
-		
-		// next.ServeHTTP(w, r.WithContext(ctxWithIDs))
-	})
+    })
 }
 
 // createStudent handles POST requests to create a new student record.
