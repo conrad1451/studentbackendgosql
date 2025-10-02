@@ -94,6 +94,9 @@ func registerTeacher(w http.ResponseWriter, r *http.Request) {
         return
     }
 
+	// NEW DEBUGGING STEP: Log the teacher ID before executing the query
+	log.Printf("Attempting to register teacher with ID: %s", teacherID)
+
     // 2. The Idempotent SQL Query
     query := `
         INSERT INTO the_real_teachers (teacher_id)
