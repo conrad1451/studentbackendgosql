@@ -57,16 +57,14 @@ func databaseChosen(chosenDB string) string {
 		return "Neon DB student records DB chosen"
 	case "PROJECT2_DB":
 	return "Neon DB project2 DB chosen"
-	case "GOOGLE_CLOUD_SQL":
-		return "Google Cloud SQL DB chosen"
-	case "GOOGLE_VM_HOSTED_SQL":
-		return "Google VM hosted DB chosen"
+	case "DIG_OCEAN_DROPLET_PSQL_DB":
+		return "DigOcean Droplet hosted DB chosen"
 	default:
 		return "some DB chosen"
 	}
 }
 
-var listOfDBConnections = []string{"NEON_STUDENT_RECORDS_DB", "PROJECT2_DB", "GOOGLE_CLOUD_SQL", "GOOGLE_VM_HOSTED_SQL"}
+var listOfDBConnections = []string{"NEON_STUDENT_RECORDS_DB", "PROJECT2_DB", "DIG_OCEAN_DROPLET_PSQL_DB"}
 
 // CHQ: Gemini AI generated this function
 // faviconHandler serves the favicon.ico file.
@@ -146,7 +144,7 @@ func insertTeacherIntoDB(ctx context.Context, teacherID string) {
 func main() {
 	// Initialize database connection
 	var err error
-	theChosenDB := listOfDBConnections[3]
+	theChosenDB := listOfDBConnections[2]
 	dbConnStr := os.Getenv(theChosenDB)
 	if dbConnStr == "" {
 		log.Fatal("DATABASE_URL environment variable not set.")
