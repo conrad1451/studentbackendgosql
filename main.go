@@ -86,62 +86,62 @@ func faviconHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func registerTeacher(w http.ResponseWriter, r *http.Request) {
-    // 1. Get the authenticated teacher ID from the request context
-    teacherID, ok := r.Context().Value(contextKeyTeacherID).(string)
-    if !ok || teacherID == "" {
-        // This is a secure check, ensuring the middleware worked correctly.
-        http.Error(w, "Forbidden: Teacher ID not found in session", http.StatusForbidden)
-        return
-    }
+	// 1. Get the authenticated teacher ID from the request context
+	teacherID, ok := r.Context().Value(contextKeyTeacherID).(string)
+	if !ok || teacherID == "" {
+		// This is a secure check, ensuring the middleware worked correctly.
+		http.Error(w, "Forbidden: Teacher ID not found in session", http.StatusForbidden)
+		return
+	}
 
 	// NEW DEBUGGING STEP: Log the teacher ID before executing the query
 	log.Printf("Attempting to register teacher with ID: %s", teacherID)
 
-    // 2. The Idempotent SQL Query
-    query := `
-        INSERT INTO the_real_teachers (teacher_id)
-        VALUES ($1)
-        ON CONFLICT (teacher_id) DO NOTHING
-    `
-    
-    // 3. Execute the Query
+	// 2. The Idempotent SQL Query
+	query := `
+		INSERT INTO Teachers (teacher_id) -- Changed 'the_real_teachers' to 'Teachers'
+		VALUES ($1)
+		ON CONFLICT (teacher_id) DO NOTHING
+	`
+	
+	// 3. Execute the Query
 	// If this fails, the internal server error (500) is triggered.
-    _, err := db.Exec(query, teacherID)
+	_, err := db.Exec(query, teacherID)
 
-    if err != nil {
+	if err != nil {
 		// CHECK YOUR SERVER LOGS HERE for the full database error message!
-        log.Printf("Error inserting teacher %s into DB: %v", teacherID, err)
-        http.Error(w, "Internal Server Error: Could not register teacher.", http.StatusInternalServerError)
-        return
-    }
+		log.Printf("Error inserting teacher %s into DB: %v", teacherID, err)
+		http.Error(w, "Internal Server Error: Could not register teacher.", http.StatusInternalServerError)
+		return
+	}
 
-    // 4. Success Response
-    w.Header().Set("Content-Type", "application/json")
-    w.WriteHeader(http.StatusOK)
-    json.NewEncoder(w).Encode(map[string]string{"message": "Teacher registration processed. Existing users ignored."})
+	// 4. Success Response
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"message": "Teacher registration processed. Existing users ignored."})
 }
 
 // CHQ: Gemini AI added new function to encapsulate the database insertion logic.
 // This is used by the middleware for automatic registration.
 func insertTeacherIntoDB(ctx context.Context, teacherID string) {
-    query := `
-        INSERT INTO the_real_teachers (teacher_id)
-        VALUES ($1)
-        ON CONFLICT (teacher_id) DO NOTHING
-    `
-    // Use context for database operation, though for a simple insert, context.Background() is often fine.
-    // Using db.Exec() without context here for simplicity, but in a production environment,
-    // consider using db.ExecContext(ctx, query, teacherID) for better cancellation/timeout handling.
-    _, err := db.Exec(query, teacherID)
-    if err != nil {
-        // IMPORTANT: Use log.Printf, not http.Error, as we are in middleware.
-        // The middleware should not fail the request just because the background
-        // operation failed, unless the database error is critical.
-        log.Printf("AUTOMATIC REGISTRATION FAILED for teacher ID %s: %v", teacherID, err)
-    } else {
-        log.Printf("AUTOMATIC REGISTRATION SUCCESS: Teacher ID %s ensured in the_real_teachers table.", teacherID)
-    }
-}	
+	query := `
+		INSERT INTO Teachers (teacher_id) -- Changed 'the_real_teachers' to 'Teachers'
+		VALUES ($1)
+		ON CONFLICT (teacher_id) DO NOTHING
+	`
+	// Use context for database operation, though for a simple insert, context.Background() is often fine.
+	// Using db.Exec() without context here for simplicity, but in a production environment,
+	// consider using db.ExecContext(ctx, query, teacherID) for better cancellation/timeout handling.
+	_, err := db.Exec(query, teacherID)
+	if err != nil {
+		// IMPORTANT: Use log.Printf, not http.Error, as we are in middleware.
+		// The middleware should not fail the request just because the background
+		// operation failed, unless the database error is critical.
+		log.Printf("AUTOMATIC REGISTRATION FAILED for teacher ID %s: %v", teacherID, err)
+	} else {
+		log.Printf("AUTOMATIC REGISTRATION SUCCESS: Teacher ID %s ensured in Teachers table.", teacherID) // Updated log message
+	}
+} 
 
 func main() {
 	// Initialize database connection
