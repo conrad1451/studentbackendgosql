@@ -85,41 +85,42 @@ func faviconHandler(w http.ResponseWriter, r *http.Request) {
     w.Write(favicon)
 }
 
-func registerTeacher(w http.ResponseWriter, r *http.Request) {
-	// 1. Get the authenticated teacher ID from the request context
-	teacherID, ok := r.Context().Value(contextKeyTeacherID).(string)
-	if !ok || teacherID == "" {
-		// This is a secure check, ensuring the middleware worked correctly.
-		http.Error(w, "Forbidden: Teacher ID not found in session", http.StatusForbidden)
-		return
-	}
+// CHQ: No longer needed because middleware handles automatic teacher registration to teacher table
+// func registerTeacher(w http.ResponseWriter, r *http.Request) {
+// 	// 1. Get the authenticated teacher ID from the request context
+// 	teacherID, ok := r.Context().Value(contextKeyTeacherID).(string)
+// 	if !ok || teacherID == "" {
+// 		// This is a secure check, ensuring the middleware worked correctly.
+// 		http.Error(w, "Forbidden: Teacher ID not found in session", http.StatusForbidden)
+// 		return
+// 	}
 
-	// NEW DEBUGGING STEP: Log the teacher ID before executing the query
-	log.Printf("Attempting to register teacher with ID: %s", teacherID)
+// 	// NEW DEBUGGING STEP: Log the teacher ID before executing the query
+// 	log.Printf("Attempting to register teacher with ID: %s", teacherID)
 
-	// 2. The Idempotent SQL Query
-	query := `
-		INSERT INTO teachers (teacher_id) -- Changed 'the_real_teachers' to 'teachers'
-		VALUES ($1)
-		ON CONFLICT (teacher_id) DO NOTHING
-	`
+// 	// 2. The Idempotent SQL Query
+// 	query := `
+// 		INSERT INTO teachers (teacher_id) -- Changed 'the_real_teachers' to 'teachers'
+// 		VALUES ($1)
+// 		ON CONFLICT (teacher_id) DO NOTHING
+// 	`
 	
-	// 3. Execute the Query
-	// If this fails, the internal server error (500) is triggered.
-	_, err := db.Exec(query, teacherID)
+// 	// 3. Execute the Query
+// 	// If this fails, the internal server error (500) is triggered.
+// 	_, err := db.Exec(query, teacherID)
 
-	if err != nil {
-		// CHECK YOUR SERVER LOGS HERE for the full database error message!
-		log.Printf("Error inserting teacher %s into DB: %v", teacherID, err)
-		http.Error(w, "Internal Server Error: Could not register teacher.", http.StatusInternalServerError)
-		return
-	}
+// 	if err != nil {
+// 		// CHECK YOUR SERVER LOGS HERE for the full database error message!
+// 		log.Printf("Error inserting teacher %s into DB: %v", teacherID, err)
+// 		http.Error(w, "Internal Server Error: Could not register teacher.", http.StatusInternalServerError)
+// 		return
+// 	}
 
-	// 4. Success Response
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"message": "Teacher registration processed. Existing users ignored."})
-}
+// 	// 4. Success Response
+// 	w.Header().Set("Content-Type", "application/json")
+// 	w.WriteHeader(http.StatusOK)
+// 	json.NewEncoder(w).Encode(map[string]string{"message": "Teacher registration processed. Existing users ignored."})
+// }
 
 // CHQ: Gemini AI added new function to encapsulate the database insertion logic.
 // This is used by the middleware for automatic registration.
@@ -187,7 +188,8 @@ func main() {
     protectedRoutes := router.PathPrefix("/api").Subrouter()
     protectedRoutes.Use(sessionValidationMiddleware) // Apply middleware to all routes in this subrouter
 
-	protectedRoutes.HandleFunc("/godbstudents/registerteacher", registerTeacher).Methods("POST")
+	// CHQ: No longer needed because middleware handles automatic teacher registration to teacher table
+	// protectedRoutes.HandleFunc("/godbstudents/registerteacher", registerTeacher).Methods("POST")
 
     protectedRoutes.HandleFunc("/godbstudents", createStudent).Methods("POST")
     protectedRoutes.HandleFunc("/godbstudents/{id}", getStudent).Methods("GET")
