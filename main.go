@@ -535,33 +535,48 @@ func getAllgodbstudents(w http.ResponseWriter, r *http.Request){
 
 
 func updateTeacherProfile(w http.ResponseWriter, r *http.Request) {
+	// 1. Authorization: Get the ID of the logged-in teacher from the context.
 	teacherID, ok := r.Context().Value(contextKeyTeacherID).(string)
 	if !ok || teacherID == "" {
 		http.Error(w, "Forbidden: Teacher ID not found in session", http.StatusForbidden)
 		return
 	}
 
-	var teacher Teacher
- 
-	query := `UPDATE teachers SET first_name = $1, last_name = $2, email = $3 WHERE id = $4`
-	result, err := db.Exec(query, teacher.FirstName, teacher.LastName, teacher.Email, teacherID)
+	// CHQ: Gemini AI included the missing decoding of request body
 	
+	// 2. Decode Request Body: CRITICAL FIX
+	var teacher Teacher // Assuming Teacher struct has FirstName, LastName, Email fields
+	err := json.NewDecoder(r.Body).Decode(&teacher)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Error updating student: %v", err), http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("Invalid request body or JSON format: %v", err), http.StatusBadRequest)
 		return
 	}
 	
+	// 3. Database Update: Update the teacher profile identified by the authenticated teacherID.
+	query := `UPDATE teachers SET first_name = $1, last_name = $2, email = $3 WHERE id = $4`
+	// Note: We use teacherID (from context) for the WHERE clause to ensure self-update.
+	result, err := db.Exec(query, teacher.FirstName, teacher.LastName, teacher.Email, teacherID)
+
+	if err != nil {
+		// Renamed "student" to "teacher" in the error message for clarity
+		http.Error(w, fmt.Sprintf("Error updating teacher profile in database: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	// 4. Check Rows Affected
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Error checking rows affected: %v", err), http.StatusInternalServerError)
 		return
 	}
 	if rowsAffected == 0 {
-		http.Error(w, "Teacher not found", http.StatusNotFound)
+		http.Error(w, "Authenticated teacher profile not found", http.StatusNotFound)
 		return
 	}
 
+	// 5. Success Response
 	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"message": "Teacher updated successfully"})
 }
 
