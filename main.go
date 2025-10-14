@@ -206,6 +206,7 @@ func main() {
 	protectedRoutes.HandleFunc("/godbstudents/{id}", deleteStudent).Methods("DELETE")
 
 	protectedRoutes.HandleFunc("/teacherprofile", updateTeacherProfile).Methods("PUT")
+	protectedRoutes.HandleFunc("/teacherprofilealt", updateTeacherProfile).Methods("PATCH")
 
 
 	// router.HandleFunc("/restfox/godbstudents", createStudent).Methods("POST")
@@ -543,7 +544,7 @@ func updateTeacherProfile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// CHQ: Gemini AI included the missing decoding of request body
-	
+
 	// 2. Decode Request Body: CRITICAL FIX
 	var teacher Teacher // Assuming Teacher struct has FirstName, LastName, Email fields
 	err := json.NewDecoder(r.Body).Decode(&teacher)
