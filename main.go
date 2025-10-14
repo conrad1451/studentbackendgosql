@@ -142,7 +142,9 @@ func faviconHandler(w http.ResponseWriter, r *http.Request) {
 
 // CHQ: Gemini AI added new function to encapsulate the database insertion logic.
 // This is used by the middleware for automatic registration.
-func insertTeacherIntoDB(ctx context.Context, teacherID string) {
+// func insertTeacherIntoDB(ctx context.Context, teacherID string) {
+
+func insertTeacherIntoDB(teacherID string) {
 	// query := `
 	// 	INSERT INTO teachers (teacher_id) -- Changed 'the_real_teachers' to 'teachers'
 	// 	VALUES ($1)
@@ -157,7 +159,7 @@ func insertTeacherIntoDB(ctx context.Context, teacherID string) {
 	INSERT INTO teachers (teacher_id, first_name, last_name, email) 
 	VALUES ($1, $2, $3, $4)
 	ON CONFLICT (teacher_id) DO NOTHING
-`
+`	
 	// Use context for database operation, though for a simple insert, context.Background() is often fine.
 	// Using db.Exec() without context here for simplicity, but in a production environment,
 	// consider using db.ExecContext(ctx, query, teacherID) for better cancellation/timeout handling.
@@ -309,7 +311,9 @@ func sessionValidationMiddleware(next http.Handler) http.Handler {
         // --- NEW CODE FOR AUTOMATIC REGISTRATION ---
         // This is where a successfully authenticated user is automatically added to the teachers table.
         // It's called after validation but before processing the request, ensuring the teacher ID is in the DB.
-        insertTeacherIntoDB(ctx, teacherID)
+        // insertTeacherIntoDB(ctx, teacherID)
+		insertTeacherIntoDB(teacherID)
+
         // ------------------------------------------
             
         // Store the user ID, teacher ID, and admin status in the request's context
