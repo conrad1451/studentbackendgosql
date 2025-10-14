@@ -99,7 +99,7 @@ func registerTeacher(w http.ResponseWriter, r *http.Request) {
 
 	// 2. The Idempotent SQL Query
 	query := `
-		INSERT INTO Teachers (teacher_id) -- Changed 'the_real_teachers' to 'Teachers'
+		INSERT INTO teachers (teacher_id) -- Changed 'the_real_teachers' to 'teachers'
 		VALUES ($1)
 		ON CONFLICT (teacher_id) DO NOTHING
 	`
@@ -125,7 +125,7 @@ func registerTeacher(w http.ResponseWriter, r *http.Request) {
 // This is used by the middleware for automatic registration.
 func insertTeacherIntoDB(ctx context.Context, teacherID string) {
 	query := `
-		INSERT INTO Teachers (teacher_id) -- Changed 'the_real_teachers' to 'Teachers'
+		INSERT INTO teachers (teacher_id) -- Changed 'the_real_teachers' to 'teachers'
 		VALUES ($1)
 		ON CONFLICT (teacher_id) DO NOTHING
 	`
@@ -139,7 +139,7 @@ func insertTeacherIntoDB(ctx context.Context, teacherID string) {
 		// operation failed, unless the database error is critical.
 		log.Printf("AUTOMATIC REGISTRATION FAILED for teacher ID %s: %v", teacherID, err)
 	} else {
-		log.Printf("AUTOMATIC REGISTRATION SUCCESS: Teacher ID %s ensured in Teachers table.", teacherID) // Updated log message
+		log.Printf("AUTOMATIC REGISTRATION SUCCESS: Teacher ID %s ensured in teachers table.", teacherID) // Updated log message
 	}
 } 
 
