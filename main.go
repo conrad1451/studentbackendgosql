@@ -567,7 +567,9 @@ func updateTeacherProfile(w http.ResponseWriter, r *http.Request) {
     
     // 3. Database Update: Update the teacher profile identified by the authenticated teacherID.
     // The query and arguments were correct, but the data source (req) must be correct.
-    query := `UPDATE teachers SET first_name = $1, last_name = $2, email = $3 WHERE id = $4`
+    // CHQ: Gemini AI fixed the line below for correct name for id field
+	// FIX: Changed "id" to "teacher_id" to match the actual database column name.
+    query := `UPDATE teachers SET first_name = $1, last_name = $2, email = $3 WHERE teacher_id = $4`
     
     // Note: We are using the fields from the unmarshalled 'req' struct.
     // Ensure db is available in scope.
