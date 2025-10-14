@@ -37,6 +37,13 @@ type Student struct {
 	TeacherID string `json:"teacher_id"`
 }
 
+type Teacher struct {
+	ID        int    `json:"teacher_id"`
+	FirstName string `json:"first_name"`
+	LastName  string `json:"last_name"`
+	Email     string `json:"email"` 
+}
+
 var db *sql.DB
 var descopeClient *client.DescopeClient
 
@@ -197,6 +204,9 @@ func main() {
     protectedRoutes.HandleFunc("/godbstudents/{id}", updateStudent).Methods("PUT")
     protectedRoutes.HandleFunc("/godbstudents/{id}", updateStudentAlt).Methods("PATCH")
 	protectedRoutes.HandleFunc("/godbstudents/{id}", deleteStudent).Methods("DELETE")
+
+	protectedRoutes.HandleFunc("/teacherprofile", updateTeacherProfile).Methods("PUT")
+
 
 	// router.HandleFunc("/restfox/godbstudents", createStudent).Methods("POST")
     // router.HandleFunc("/restfox/godbstudents/{id}", getStudent).Methods("GET")
@@ -523,6 +533,37 @@ func getAllgodbstudents(w http.ResponseWriter, r *http.Request){
 	}
 }
 
+
+func updateTeacherProfile(w http.ResponseWriter, r *http.Request) {
+	teacherID, ok := r.Context().Value(contextKeyTeacherID).(string)
+	if !ok || teacherID == "" {
+		http.Error(w, "Forbidden: Teacher ID not found in session", http.StatusForbidden)
+		return
+	}
+
+	var teacher Teacher
+ 
+	query := `UPDATE teachers SET first_name = $1, last_name = $2, email = $3 WHERE id = $4`
+	result, err := db.Exec(query, teacher.FirstName, teacher.LastName, teacher.Email, teacherID)
+	
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Error updating student: %v", err), http.StatusInternalServerError)
+		return
+	}
+	
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Error checking rows affected: %v", err), http.StatusInternalServerError)
+		return
+	}
+	if rowsAffected == 0 {
+		http.Error(w, "Teacher not found", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"message": "Teacher updated successfully"})
+}
 
 // updateStudent handles PUT requests to update an existing student record, with an ownership check.
 func updateStudentAsAdmin(w http.ResponseWriter, r *http.Request) {
