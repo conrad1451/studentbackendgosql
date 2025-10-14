@@ -143,15 +143,25 @@ func faviconHandler(w http.ResponseWriter, r *http.Request) {
 // CHQ: Gemini AI added new function to encapsulate the database insertion logic.
 // This is used by the middleware for automatic registration.
 func insertTeacherIntoDB(ctx context.Context, teacherID string) {
+	// query := `
+	// 	INSERT INTO teachers (teacher_id) -- Changed 'the_real_teachers' to 'teachers'
+	// 	VALUES ($1)
+	// 	ON CONFLICT (teacher_id) DO NOTHING
+	// `
+	// // Use context for database operation, though for a simple insert, context.Background() is often fine.
+	// // Using db.Exec() without context here for simplicity, but in a production environment,
+	// // consider using db.ExecContext(ctx, query, teacherID) for better cancellation/timeout handling.
+	// _, err := db.Exec(query, teacherID)
+
 	query := `
-		INSERT INTO teachers (teacher_id) -- Changed 'the_real_teachers' to 'teachers'
-		VALUES ($1)
-		ON CONFLICT (teacher_id) DO NOTHING
-	`
+	INSERT INTO teachers (teacher_id, first_name, last_name, email) 
+	VALUES ($1, $2, $3, $4)
+	ON CONFLICT (teacher_id) DO NOTHING
+`
 	// Use context for database operation, though for a simple insert, context.Background() is often fine.
 	// Using db.Exec() without context here for simplicity, but in a production environment,
 	// consider using db.ExecContext(ctx, query, teacherID) for better cancellation/timeout handling.
-	_, err := db.Exec(query, teacherID)
+	_, err := db.Exec(query, teacherID, "First name", "last name", "email")
 	if err != nil {
 		// IMPORTANT: Use log.Printf, not http.Error, as we are in middleware.
 		// The middleware should not fail the request just because the background
