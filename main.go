@@ -37,11 +37,22 @@ type Student struct {
 	TeacherID string `json:"teacher_id"`
 }
 
-type Teacher struct {
-	ID        int    `json:"teacher_id"`
-	FirstName string `json:"first_name"`
-	LastName  string `json:"last_name"`
-	Email     string `json:"email"` 
+// type Teacher struct {
+// 	ID        int    `json:"teacher_id"`
+// 	FirstName string `json:"first_name"`
+// 	LastName  string `json:"last_name"`
+// 	Email     string `json:"email"` 
+// }
+
+type UpdateTeacherRequest struct {
+    FirstName string `json:"first_name"`
+    LastName  string `json:"last_name"`
+    Email     string `json:"email"`
+}
+
+// SuccessResponse is a simple response structure for successful operations.
+type SuccessResponse struct {
+    Message string `json:"message"`
 }
 
 var db *sql.DB
@@ -534,51 +545,68 @@ func getAllgodbstudents(w http.ResponseWriter, r *http.Request){
 	}
 }
 
-
+// CHQ: Gemini AI updated
 func updateTeacherProfile(w http.ResponseWriter, r *http.Request) {
-	// 1. Authorization: Get the ID of the logged-in teacher from the context.
-	teacherID, ok := r.Context().Value(contextKeyTeacherID).(string)
-	if !ok || teacherID == "" {
-		http.Error(w, "Forbidden: Teacher ID not found in session", http.StatusForbidden)
-		return
-	}
+    // 1. Authorization: Get the ID of the logged-in teacher from the context.
+    teacherID, ok := r.Context().Value(contextKeyTeacherID).(string)
+    if !ok || teacherID == "" {
+        // This should not happen if middleware succeeded, but good to check.
+        log.Printf("Forbidden: Teacher ID not found in session context.")
+        http.Error(w, "Forbidden: Teacher ID not found in session", http.StatusForbidden)
+        return
+    }
 
-	// CHQ: Gemini AI included the missing decoding of request body
+    // 2. Decode Request Body: CRITICAL FIX
+    var req UpdateTeacherRequest // Use the struct with correct JSON tags
+    err := json.NewDecoder(r.Body).Decode(&req)
+    if err != nil {
+        log.Printf("Invalid request body or JSON format: %v", err)
+        http.Error(w, fmt.Sprintf("Invalid request body or JSON format: %v", err), http.StatusBadRequest)
+        return
+    }
+    
+    // 3. Database Update: Update the teacher profile identified by the authenticated teacherID.
+    // The query and arguments were correct, but the data source (req) must be correct.
+    query := `UPDATE teachers SET first_name = $1, last_name = $2, email = $3 WHERE id = $4`
+    
+    // Note: We are using the fields from the unmarshalled 'req' struct.
+    // Ensure db is available in scope.
+    result, err := db.Exec(query, req.FirstName, req.LastName, req.Email, teacherID)
 
-	// 2. Decode Request Body: CRITICAL FIX
-	var teacher Teacher // Assuming Teacher struct has FirstName, LastName, Email fields
-	err := json.NewDecoder(r.Body).Decode(&teacher)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Invalid request body or JSON format: %v", err), http.StatusBadRequest)
-		return
-	}
-	
-	// 3. Database Update: Update the teacher profile identified by the authenticated teacherID.
-	query := `UPDATE teachers SET first_name = $1, last_name = $2, email = $3 WHERE id = $4`
-	// Note: We use teacherID (from context) for the WHERE clause to ensure self-update.
-	result, err := db.Exec(query, teacher.FirstName, teacher.LastName, teacher.Email, teacherID)
+    if err != nil {
+        log.Printf("Error executing SQL update for teacher ID %s: %v", teacherID, err)
+        // Ensure the error response is JSON for the frontend to handle gracefully.
+        w.Header().Set("Content-Type", "application/json")
+        w.WriteHeader(http.StatusInternalServerError)
+        json.NewEncoder(w).Encode(SuccessResponse{
+            Message: fmt.Sprintf("Error updating profile in database: %v", err),
+        })
+        return
+    }
 
-	if err != nil {
-		// Renamed "student" to "teacher" in the error message for clarity
-		http.Error(w, fmt.Sprintf("Error updating teacher profile in database: %v", err), http.StatusInternalServerError)
-		return
-	}
+    // 4. Check Rows Affected
+    rowsAffected, err := result.RowsAffected()
+    if err != nil {
+        log.Printf("Error checking rows affected for teacher ID %s: %v", teacherID, err)
+        w.Header().Set("Content-Type", "application/json")
+        w.WriteHeader(http.StatusInternalServerError)
+        json.NewEncoder(w).Encode(SuccessResponse{
+            Message: "Error confirming profile update.",
+        })
+        return
+    }
+    if rowsAffected == 0 {
+        log.Printf("Update attempted for teacher ID %s, but 0 rows affected. Profile not found?", teacherID)
+        http.Error(w, "Authenticated teacher profile not found or no changes made", http.StatusNotFound)
+        return
+    }
 
-	// 4. Check Rows Affected
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Error checking rows affected: %v", err), http.StatusInternalServerError)
-		return
-	}
-	if rowsAffected == 0 {
-		http.Error(w, "Authenticated teacher profile not found", http.StatusNotFound)
-		return
-	}
-
-	// 5. Success Response
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"message": "Teacher updated successfully"})
+    // 5. Success Response
+    w.Header().Set("Content-Type", "application/json")
+    w.WriteHeader(http.StatusOK)
+    json.NewEncoder(w).Encode(SuccessResponse{
+        Message: "Teacher updated successfully",
+    })
 }
 
 // updateStudent handles PUT requests to update an existing student record, with an ownership check.
