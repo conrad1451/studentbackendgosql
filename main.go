@@ -84,7 +84,7 @@ func databaseChosen(chosenDB string) string {
 	}
 }
 
-var listOfDBConnections = []string{"NEON_STUDENT_RECORDS_DB", "PROJECT2_DB", "DIG_OCEAN_DROPLET_PSQL_DB", "DIG_OCEAN_DROPLET_PSQL_DB_TEST"}
+var listOfDBConnections = []string{"NEON_STUDENT_RECORDS_DB", "PROJECT2_DB", "DIG_OCEAN_DROPLET_PSQL_DB", "DIG_OCEAN_DROPLET_PSQL_DB_TEST", "NEON_DB_STUDENT_ROSTER"}
 
 // CHQ: Gemini AI generated this function
 // faviconHandler serves the favicon.ico file.
@@ -178,7 +178,7 @@ func main() {
 	// Initialize database connection
 	var err error
 	// theChosenDB := listOfDBConnections[2]
-	theChosenDB := listOfDBConnections[3]
+	theChosenDB := listOfDBConnections[4]
 	dbConnStr := os.Getenv(theChosenDB)
 	if dbConnStr == "" {
 		log.Fatal("DATABASE_URL environment variable not set.")
